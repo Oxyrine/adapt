@@ -57,26 +57,62 @@ data class InteractionRequest(
     @SerialName("generation_config") val generationConfig: GenerationConfig? = null
 )
 
-// NOTE: the exact response shape for word-level timestamps wasn't in the docs surfaced during
-// planning (only the request shape was confirmed). This mapping is best-effort and unverified
-// against a live response -- if transcribeWithTimestamps() comes back with an empty word list
-// where the docs' request shape looks right, check this DTO against the actual response body
-// first, per the diagnostic order in the plan's verification section.
+// Response shape confirmed against the live API (not the docs, which never showed a full response
+// body) with real curl calls during setup -- both a chat call and a transcription call with word
+// timestamps enabled. There is no output_text or output field at all: everything lives under
+// steps[], each step typed "thought" (skip) or "model_output" (keep), each content item carrying
+// plain text and, for transcription, a word_info annotation per word. Word timing comes as a
+// STRING like "0.100s" or "1s" -- not an integer millisecond count as the request-shape docs would
+// suggest by analogy -- see parseOffsetToMs below.
 @Serializable
-data class InteractionResponse(
-    @SerialName("output_text") val outputText: String? = null,
-    val output: List<TranscriptOutputItem>? = null
-)
-
-@Serializable
-data class TranscriptOutputItem(val words: List<TranscriptWord>? = null)
-
-@Serializable
-data class TranscriptWord(
+data class WordAnnotation(
     val text: String,
-    @SerialName("start_ms") val startMs: Long,
-    @SerialName("end_ms") val endMs: Long
+    @SerialName("start_offset") val startOffset: String? = null,
+    @SerialName("end_offset") val endOffset: String? = null,
+    val type: String? = null
 )
+
+@Serializable
+data class InteractionStepContent(
+    val type: String? = null,
+    val text: String? = null,
+    val annotations: List<WordAnnotation>? = null
+)
+
+@Serializable
+data class InteractionStep(
+    val type: String? = null,
+    val content: List<InteractionStepContent>? = null
+)
+
+@Serializable
+data class InteractionResponse(val steps: List<InteractionStep>? = null) {
+    /** Concatenated text from every "model_output" step -- "thought" steps are reasoning, not the
+     *  reply, and are deliberately skipped. */
+    fun modelOutputText(): String? =
+        steps?.filter { it.type == "model_output" }
+            ?.flatMap { it.content.orEmpty() }
+            ?.mapNotNull { it.text }
+            ?.joinToString("")
+            ?.ifBlank { null }
+
+    /** Word-level timestamps for transcription calls -- lives inside content[].annotations[],
+     *  filtered to type "word_info" (guards against other annotation kinds appearing later). */
+    fun wordList(): List<Word> =
+        steps?.filter { it.type == "model_output" }
+            ?.flatMap { it.content.orEmpty() }
+            ?.flatMap { it.annotations.orEmpty() }
+            ?.filter { it.type == "word_info" }
+            ?.map { Word(it.text, parseOffsetToMs(it.startOffset), parseOffsetToMs(it.endOffset)) }
+            ?: emptyList()
+}
+
+/** "0.100s" / "1s" / "1.900s" -> milliseconds. Malformed or missing offsets fall back to 0 rather
+ *  than crashing the whole transcript on one bad field. */
+private fun parseOffsetToMs(offset: String?): Long {
+    val seconds = offset?.removeSuffix("s")?.toDoubleOrNull() ?: return 0L
+    return (seconds * 1000).toLong()
+}
 
 sealed class GeminiResult<out T> {
     data class Success<T>(val value: T) : GeminiResult<T>()
@@ -100,7 +136,7 @@ object GeminiClient {
         try {
             val body = InteractionRequest(model = CHAT_MODEL, input = listOf(ContentPart(type = "text", text = prompt)))
             val responseBody = post(apiKey, body)
-            val text = json.decodeFromString<InteractionResponse>(responseBody).outputText
+            val text = json.decodeFromString<InteractionResponse>(responseBody).modelOutputText()
             if (text.isNullOrBlank()) GeminiResult.Failure("Empty response from tutor model") else GeminiResult.Success(text)
         } catch (e: Exception) {
             GeminiResult.Failure(e.message ?: "Network error")
@@ -116,10 +152,7 @@ object GeminiClient {
                     generationConfig = GenerationConfig(transcriptionConfig = TranscriptionConfig())
                 )
                 val responseBody = post(apiKey, body)
-                val words = json.decodeFromString<InteractionResponse>(responseBody)
-                    .output?.firstOrNull()?.words
-                    ?.map { Word(it.text, it.startMs, it.endMs) }
-                    ?: emptyList()
+                val words = json.decodeFromString<InteractionResponse>(responseBody).wordList()
                 GeminiResult.Success(words)
             } catch (e: Exception) {
                 GeminiResult.Failure(e.message ?: "Network error")

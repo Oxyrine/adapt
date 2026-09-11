@@ -11,14 +11,29 @@ answer gets a visibly deeper follow-up than a hesitant-correct one at the same w
 
 ## Build status
 
-**Verified:** `./gradlew :app:testDebugUnitTest` (all 16 `CoreTest.kt` cases pass) and
-`./gradlew :app:assembleDebug` (full APK builds and signs) both pass, via a JDK 17 + Gradle 8.9 +
-Android SDK 34 toolchain installed specifically to check this. **Not verified:** running on an
-actual device/emulator -- no emulator was available in that pass, so the manual demo script below
-(voice mode, mic permission, UI, compare screen) still needs a first real run before you trust it.
+**Verified:** `./gradlew :app:testDebugUnitTest` and `./gradlew :app:assembleDebug` both pass, via
+a JDK 17 + Gradle 8.9 + Android SDK 34 toolchain installed specifically to check this. **Also
+verified against the live Gemini API** -- both the chat and transcription endpoints were hit with a
+real key and a real synthesized speech clip, not just reasoned about from docs. **Not verified:**
+running on an actual device/emulator -- that still needs a first real run before you trust the
+manual demo script below (voice mode, mic permission, UI, compare screen).
 
-Three real bugs turned up in that pass, now fixed, worth knowing about if you're extending this:
+Real bugs turned up in those passes, now fixed -- the live-API ones especially are worth knowing
+about, since nothing short of a real call would have caught them:
 
+- **The Gemini response shape doesn't match what the request-shape docs implied.** There is no
+  `output_text`/`output` field at all -- text and word timestamps live inside `steps[].content[]`,
+  filtered to `type == "model_output"` (skip `"thought"` steps). Word timing arrives as a **string**
+  like `"0.100s"` or `"1s"`, not an integer millisecond count. The original `Gemini.kt` DTOs
+  expected `output_text` (chat would have silently failed every call with "Empty response") and a
+  `Long` for timing (transcription would have crashed on deserialization). Fixed by decoding the
+  real shape and parsing the offset strings; `CoreTest.kt` now pins both against real captured
+  response bodies so a future API change fails the build instead of failing silently on stage.
+- **Gemini's transcription normalizes spoken numbers to digits, even in `verbatim` mode.** Saying
+  "twelve" came back as `"12."` in a live test. `QuestionBank.isCorrect` only matched the word form,
+  so a correct spoken answer to a numeric question would have been marked wrong on formatting alone
+  -- independent of the transcription-accuracy risk in Finding 6. Fixed to accept both forms for
+  numeric answers.
 - `Regex("\s+")` in `Metrics.kt`/`QuestionBank.kt` -- `\s` isn't a valid Kotlin string escape
   outside a raw (`"""..."""`) string; needed `\\s+`.
 - Kotlin 2.0+ requires the `org.jetbrains.kotlin.plugin.compose` Gradle plugin when
@@ -26,8 +41,8 @@ Three real bugs turned up in that pass, now fixed, worth knowing about if you're
 - `ColumnScope`/`RowScope`'s `Modifier.weight()` only resolves inside that scope's own lambda --
   `ChatScreen`'s top-level `LazyColumn` needed `ChatScreen` to become a `ColumnScope` extension
   composable, since it's always called from inside `TutorApp`'s `Column{}`.
-- Also: an XML `<!-- comment -->` cannot contain a literal `--` anywhere inside it (unlike a
-  Kotlin `//` comment) -- caught in `AndroidManifest.xml`, worth knowing before adding more.
+- An XML `<!-- comment -->` cannot contain a literal `--` anywhere inside it (unlike a Kotlin `//`
+  comment) -- caught in `AndroidManifest.xml`, worth knowing before adding more.
 
 To build it yourself:
 
