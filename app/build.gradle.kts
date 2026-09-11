@@ -4,6 +4,7 @@ plugins {
     id("com.android.application")
     id("org.jetbrains.kotlin.android")
     id("org.jetbrains.kotlin.plugin.serialization")
+    id("org.jetbrains.kotlin.plugin.compose")
 }
 
 // Demo-only key loading: local.properties -> BuildConfig -> BuildConfig.GEMINI_API_KEY.
@@ -37,9 +38,9 @@ android {
         buildConfig = true
     }
 
-    composeOptions {
-        kotlinCompilerExtensionVersion = "1.5.14"
-    }
+    // No composeOptions.kotlinCompilerExtensionVersion here -- that path is obsolete under
+    // Kotlin 2.0+; the org.jetbrains.kotlin.plugin.compose plugin (applied above) owns
+    // Compose codegen now, versioned by the Kotlin version itself.
 
     compileOptions {
         sourceCompatibility = JavaVersion.VERSION_17

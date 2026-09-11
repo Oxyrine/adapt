@@ -74,12 +74,15 @@ class CoreTest {
         assertTrue(confidentWrong.followUp.contains("misconception", ignoreCase = true))
         assertTrue(confidentWrong.followUp.contains("deeper", ignoreCase = true))
 
+        // Note: "misconception" alone isn't a safe marker -- the low-confidence-wrong branch
+        // deliberately says "not a misconception" to distinguish a careless slip from a real one,
+        // so it contains the substring too. "flag" is unique to the confident-wrong routing.
         val others = listOf(
             Routing.directive(correct = true, band = ConfidenceBand.HIGH),
             Routing.directive(correct = true, band = ConfidenceBand.LOW),
             Routing.directive(correct = false, band = ConfidenceBand.LOW)
         )
-        others.forEach { assertFalse(it.followUp.contains("misconception", ignoreCase = true)) }
+        others.forEach { assertFalse(it.followUp.contains("flag", ignoreCase = true)) }
     }
 
     // ---- Confidence scorer ----

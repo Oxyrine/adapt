@@ -9,13 +9,27 @@ The whole point of this app is a contrast a reviewer can see in a few minutes, n
 structure tightens for a struggling student, encouragement never drops, and a confident-wrong
 answer gets a visibly deeper follow-up than a hesitant-correct one at the same warmth.
 
-## Before you build
+## Build status
 
-**I have not compiled this.** No JDK, Gradle, or Android SDK was available on the machine this was
-written on. The pure-Kotlin core (`Tone.kt`, `Confidence.kt`, `Routing.kt`, `Metrics.kt`,
-`QuestionBank.kt`) has no Android imports and is logically self-consistent with `CoreTest.kt`, but
-"logically consistent on paper" and "compiles" are different claims. **Open this in Android Studio
-and run the test suite before building anything on top of it:**
+**Verified:** `./gradlew :app:testDebugUnitTest` (all 16 `CoreTest.kt` cases pass) and
+`./gradlew :app:assembleDebug` (full APK builds and signs) both pass, via a JDK 17 + Gradle 8.9 +
+Android SDK 34 toolchain installed specifically to check this. **Not verified:** running on an
+actual device/emulator -- no emulator was available in that pass, so the manual demo script below
+(voice mode, mic permission, UI, compare screen) still needs a first real run before you trust it.
+
+Three real bugs turned up in that pass, now fixed, worth knowing about if you're extending this:
+
+- `Regex("\s+")` in `Metrics.kt`/`QuestionBank.kt` -- `\s` isn't a valid Kotlin string escape
+  outside a raw (`"""..."""`) string; needed `\\s+`.
+- Kotlin 2.0+ requires the `org.jetbrains.kotlin.plugin.compose` Gradle plugin when
+  `compose = true` -- the old `composeOptions { kotlinCompilerExtensionVersion }` path is gone.
+- `ColumnScope`/`RowScope`'s `Modifier.weight()` only resolves inside that scope's own lambda --
+  `ChatScreen`'s top-level `LazyColumn` needed `ChatScreen` to become a `ColumnScope` extension
+  composable, since it's always called from inside `TutorApp`'s `Column{}`.
+- Also: an XML `<!-- comment -->` cannot contain a literal `--` anywhere inside it (unlike a
+  Kotlin `//` comment) -- caught in `AndroidManifest.xml`, worth knowing before adding more.
+
+To build it yourself:
 
 ```bash
 ./gradlew :app:testDebugUnitTest

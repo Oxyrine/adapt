@@ -1,6 +1,7 @@
 package com.popgamma.tutor
 
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.ColumnScope
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
@@ -117,8 +118,11 @@ private fun ProfileScreen(
     }
 }
 
+// ColumnScope receiver: the message LazyColumn below uses Modifier.weight() to fill remaining
+// height, which is only resolvable with a ColumnScope in scope -- ChatScreen is always called
+// from inside TutorApp's Column{}, which provides it.
 @Composable
-private fun ChatScreen(
+private fun ColumnScope.ChatScreen(
     state: TutorUiState,
     micGranted: Boolean,
     onRequestMicPermission: () -> Unit,
