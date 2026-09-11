@@ -1,0 +1,4 @@
+# Copy this file to local.properties (gitignored) and fill in your key.
+# A shipped build must not embed this key client-side -- see spec Section 6 and
+# the README note on the same point. This is demo-only.
+GEMINI_API_KEY=your-api-key-here
