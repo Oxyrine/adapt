@@ -183,6 +183,18 @@ private fun ChatScreen(
             )
         }
 
+        if (state.busy) {
+            item {
+                // Covers both the text and voice paths -- busy is true for the whole wait on
+                // Gemini in either flow. A realistic reply takes 8-16s of real server compute
+                // (measured live) before emulator network overhead on top of that; with no visual
+                // feedback at all that silent wait reads as the app having frozen, not as "working."
+                LinearProgressIndicator(Modifier.fillMaxWidth())
+                Text("Albert is thinking...", style = MaterialTheme.typography.bodySmall)
+                Spacer(Modifier.height(4.dp))
+            }
+        }
+
         item {
             Spacer(Modifier.height(8.dp))
             Row(verticalAlignment = Alignment.CenterVertically) {
@@ -268,10 +280,9 @@ private fun VoiceInputRow(
                 )
             }
         }
-        if (state.micState == MicState.PROCESSING) {
-            LinearProgressIndicator(Modifier.fillMaxWidth())
-            Text("Scoring answer...")
-        }
+        // No separate "Scoring answer..." indicator here -- state.busy covers this whole window
+        // (transcription + scoring + the chat reply) and ChatScreen already shows "Albert is
+        // thinking..." for it, so a second indicator here would just be a duplicate.
     }
 }
 

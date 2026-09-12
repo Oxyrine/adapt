@@ -123,10 +123,12 @@ object GeminiClient {
     private const val ENDPOINT = "https://generativelanguage.googleapis.com/v1beta/interactions"
     private const val CHAT_MODEL = "gemini-3.8-flash"
     private const val TRANSCRIBE_MODEL = "gemini-3.5-transcribe"
-    // Verified live: this model spends real time on internal "thinking" tokens before replying
-    // (90 thought tokens for a one-word reply in testing) -- 12s was cutting off normal model
-    // latency, not just genuine network failures, causing spurious timeouts mid-demo.
-    private const val TIMEOUT_SECONDS = 30L // build-now network-failure path: never hang forever
+    // Measured live: a realistic full prompt (system prompt + routing addendum + history) takes
+    // 8.5-15.7s of genuine server compute from a direct connection. On top of that, the Android
+    // emulator's virtualized NAT adds real, variable latency of its own -- pinging the API host
+    // from inside the emulator ranged 4ms to 502ms with no packet loss, just heavy jitter. 30s cut
+    // it close enough to fail under normal-but-unlucky conditions; 60s gives real headroom.
+    private const val TIMEOUT_SECONDS = 60L // build-now network-failure path: never hang forever
 
     private val json = Json { ignoreUnknownKeys = true }
     private val client = OkHttpClient.Builder()
