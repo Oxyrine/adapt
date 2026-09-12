@@ -193,6 +193,17 @@ object GeminiClient {
                 // "HTTP 500:" with nothing after the colon (OkHttp's reason phrase is often empty
                 // for HTTP/2 responses) and no way to tell why. Truncated to keep the error banner
                 // readable.
+                if (resp.code == 429) {
+                    // Seen live during demo prep: repeated calls against a free-tier key exhaust
+                    // its quota. Retrying does not help -- it just spends another call -- so this
+                    // is reported plainly instead of dumping the raw Google error JSON, and points
+                    // at the offline fixtures as the way to keep testing while quota is down.
+                    throw HttpException(
+                        429,
+                        "API quota exceeded for this key. Wait for it to reset or check your plan, " +
+                            "or use the \"Offline sample\" toggle to keep testing without live calls."
+                    )
+                }
                 throw HttpException(resp.code, "HTTP ${resp.code}: ${responseText?.take(300) ?: "(no body)"}")
             }
             return responseText ?: throw IOException("Empty response body")
