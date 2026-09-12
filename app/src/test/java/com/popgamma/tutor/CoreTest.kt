@@ -5,6 +5,7 @@ import kotlinx.serialization.json.Json
 import org.junit.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertFalse
+import kotlin.test.assertNotEquals
 import kotlin.test.assertTrue
 
 /**
@@ -189,6 +190,42 @@ class CoreTest {
         val profile = ToneTable.lookup(Performance.STRONG, Regularity.CONSISTENT)
         val prompt = PromptBuilder.systemPrompt(profile)
         assertTrue(prompt.contains("Jokes and tangents are welcome"))
+    }
+
+    // ---- Fallback replies (chat call failed -- quota/network) still honor Caveats 2 & 3 ----
+
+    @Test
+    fun `fallback reply structure scaffolds more as structure tightens, never fewer jokes than scaffolding steps demands`() {
+        val loose = MetricsScanner.scan(FallbackReplies.reply(ToneTable.lookup(Performance.STRONG, Regularity.CONSISTENT)))
+        val medium = MetricsScanner.scan(FallbackReplies.reply(ToneTable.lookup(Performance.STRONG, Regularity.GAPPED)))
+        val tight = MetricsScanner.scan(FallbackReplies.reply(ToneTable.lookup(Performance.STRUGGLING, Regularity.CONSISTENT)))
+
+        assertTrue(loose.jokeTangentCount >= 1, "Loose fallback should read as relaxed, not scaffolded")
+        assertEquals(0, loose.scaffoldingSteps)
+        assertTrue(medium.scaffoldingSteps > loose.scaffoldingSteps)
+        assertTrue(tight.scaffoldingSteps > medium.scaffoldingSteps)
+        assertEquals(0, tight.jokeTangentCount, "Tight structure fallback must not read as jokey")
+    }
+
+    @Test
+    fun `fallback reply encouragement does not drop between STANDARD and HIGH cells`() {
+        val standard = MetricsScanner.scan(FallbackReplies.reply(ToneTable.lookup(Performance.STRONG, Regularity.CONSISTENT)))
+        val high = MetricsScanner.scan(FallbackReplies.reply(ToneTable.lookup(Performance.STRUGGLING, Regularity.GAPPED)))
+        assertTrue(high.praiseMarkers >= standard.praiseMarkers)
+    }
+
+    @Test
+    fun `fallback reply follow-up varies with confidence routing but stays labeled offline`() {
+        val profile = ToneTable.lookup(Performance.STRUGGLING, Regularity.GAPPED)
+        val confidentWrong = FallbackReplies.reply(profile, correct = false, band = ConfidenceBand.HIGH)
+        val confidentRight = FallbackReplies.reply(profile, correct = true, band = ConfidenceBand.HIGH)
+
+        assertTrue(confidentWrong.contains("Offline reply"))
+        assertTrue(confidentRight.contains("Offline reply"))
+        // Confident wrong is the strongest misconception signal -- its fallback follow-up must
+        // still read as the deepest one, same as the live routing directive does.
+        assertTrue(confidentWrong.length > confidentRight.length)
+        assertNotEquals(confidentWrong, confidentRight)
     }
 
     // ---- Gemini response parsing -- payloads below are trimmed but otherwise verbatim from real

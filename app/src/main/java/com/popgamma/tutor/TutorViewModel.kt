@@ -74,7 +74,10 @@ class TutorViewModel(private val apiKey: String) : ViewModel() {
             val prompt = PromptBuilder.buildPrompt(profile, addendum = null, history = conversationContext(), userText = userText)
             when (val result = GeminiClient.chat(apiKey, prompt)) {
                 is GeminiResult.Success -> applyReply(result.value)
-                is GeminiResult.Failure -> _state.update { it.copy(busy = false, error = result.message) }
+                is GeminiResult.Failure -> {
+                    _state.update { it.copy(error = "${result.message} -- showing an offline reply") }
+                    applyReply(FallbackReplies.reply(profile))
+                }
             }
         }
     }
@@ -160,7 +163,10 @@ class TutorViewModel(private val apiKey: String) : ViewModel() {
         val prompt = PromptBuilder.buildPrompt(profile, addendum, conversationContext(), transcript)
         when (val result = GeminiClient.chat(apiKey, prompt)) {
             is GeminiResult.Success -> applyReply(result.value)
-            is GeminiResult.Failure -> _state.update { it.copy(busy = false, error = result.message, micState = MicState.IDLE) }
+            is GeminiResult.Failure -> {
+                _state.update { it.copy(error = "${result.message} -- showing an offline reply") }
+                applyReply(FallbackReplies.reply(profile, correct, band))
+            }
         }
     }
 
