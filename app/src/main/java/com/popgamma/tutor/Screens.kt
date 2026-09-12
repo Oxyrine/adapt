@@ -1,7 +1,8 @@
 package com.popgamma.tutor
 
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.ColumnScope
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
@@ -92,37 +93,45 @@ private fun ProfileScreen(
     onCompare: () -> Unit,
     canCompare: Boolean
 ) {
-    Text("Pick a simulated student", style = MaterialTheme.typography.titleLarge)
-    Spacer(Modifier.height(16.dp))
-    val combos = listOf(
-        Performance.STRONG to Regularity.CONSISTENT,
-        Performance.STRONG to Regularity.GAPPED,
-        Performance.STRUGGLING to Regularity.CONSISTENT,
-        Performance.STRUGGLING to Regularity.GAPPED,
-    )
-    combos.forEach { (perf, reg) ->
-        Button(
-            onClick = { onPick(perf, reg) },
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(vertical = 4.dp)
-        ) {
-            Text("${perf.name} / ${reg.name}")
+    Column(Modifier.verticalScroll(rememberScrollState())) {
+        Text("Pick a simulated student", style = MaterialTheme.typography.titleLarge)
+        Spacer(Modifier.height(16.dp))
+        val combos = listOf(
+            Performance.STRONG to Regularity.CONSISTENT,
+            Performance.STRONG to Regularity.GAPPED,
+            Performance.STRUGGLING to Regularity.CONSISTENT,
+            Performance.STRUGGLING to Regularity.GAPPED,
+        )
+        combos.forEach { (perf, reg) ->
+            Button(
+                onClick = { onPick(perf, reg) },
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(vertical = 4.dp)
+            ) {
+                Text("${perf.name} / ${reg.name}")
+            }
         }
-    }
-    Spacer(Modifier.height(24.dp))
-    if (canCompare) {
-        OutlinedButton(onClick = onCompare, modifier = Modifier.fillMaxWidth()) {
-            Text("Compare snapshots")
+        Spacer(Modifier.height(24.dp))
+        if (canCompare) {
+            OutlinedButton(onClick = onCompare, modifier = Modifier.fillMaxWidth()) {
+                Text("Compare snapshots")
+            }
         }
     }
 }
 
-// ColumnScope receiver: the message LazyColumn below uses Modifier.weight() to fill remaining
-// height, which is only resolvable with a ColumnScope in scope -- ChatScreen is always called
-// from inside TutorApp's Column{}, which provides it.
+// The whole screen is ONE scrolling LazyColumn, not a fixed header/footer around a small
+// scrollable message list. The fixed-content approach broke in practice: the metrics strip grows
+// (confidence readout adds several lines) and the voice-mode question bank adds four more rows,
+// and once that fixed content got taller than the viewport, the old weighted message list got
+// squeezed toward zero height with no way to scroll to anything below it -- exactly "can't scroll,
+// options are in the way." Putting everything in one LazyColumn means nothing can become
+// unreachable, at the cost of the input row not staying pinned to the bottom like a typical chat
+// app.
+// ponytail: not a pinned input bar, add one if the unpinned input proves annoying in the demo.
 @Composable
-private fun ColumnScope.ChatScreen(
+private fun ChatScreen(
     state: TutorUiState,
     micGranted: Boolean,
     onRequestMicPermission: () -> Unit,
@@ -137,68 +146,78 @@ private fun ColumnScope.ChatScreen(
     onBackToProfiles: () -> Unit,
     onDismissError: () -> Unit
 ) {
-    Row(verticalAlignment = Alignment.CenterVertically) {
-        TextButton(onClick = onBackToProfiles) { Text("< Profiles") }
-        Spacer(Modifier.weight(1f, fill = true))
-        Text("${state.performance} / ${state.regularity}", style = MaterialTheme.typography.labelLarge)
-    }
-
-    state.error?.let { err ->
-        Card(
-            Modifier
-                .fillMaxWidth()
-                .padding(vertical = 4.dp)
-        ) {
-            Row(Modifier.padding(8.dp), verticalAlignment = Alignment.CenterVertically) {
-                Text(err, Modifier.weight(1f), color = MaterialTheme.colorScheme.error)
-                TextButton(onClick = onDismissError) { Text("Dismiss") }
+    LazyColumn(Modifier.fillMaxSize()) {
+        item {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                TextButton(onClick = onBackToProfiles) { Text("< Profiles") }
+                Spacer(Modifier.weight(1f, fill = true))
+                Text("${state.performance} / ${state.regularity}", style = MaterialTheme.typography.labelLarge)
             }
         }
-    }
 
-    MetricsStrip(state)
-    Spacer(Modifier.height(8.dp))
+        state.error?.let { err ->
+            item {
+                Card(
+                    Modifier
+                        .fillMaxWidth()
+                        .padding(vertical = 4.dp)
+                ) {
+                    Row(Modifier.padding(8.dp), verticalAlignment = Alignment.CenterVertically) {
+                        Text(err, Modifier.weight(1f), color = MaterialTheme.colorScheme.error)
+                        TextButton(onClick = onDismissError) { Text("Dismiss") }
+                    }
+                }
+            }
+        }
 
-    LazyColumn(Modifier.weight(1f, fill = true)) {
+        item {
+            MetricsStrip(state)
+            Spacer(Modifier.height(8.dp))
+        }
+
         items(state.messages) { msg ->
             Text(
                 text = (if (msg.fromAlbert) "Albert: " else "Student: ") + msg.text,
                 modifier = Modifier.padding(vertical = 4.dp)
             )
         }
-    }
 
-    Row(verticalAlignment = Alignment.CenterVertically) {
-        Text("Voice mode")
-        Switch(checked = state.voiceMode, onCheckedChange = onToggleVoice)
-        Spacer(Modifier.weight(1f, fill = true))
-        Text("Offline sample")
-        Switch(checked = state.offlineMode, onCheckedChange = onToggleOffline)
-    }
+        item {
+            Spacer(Modifier.height(8.dp))
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Text("Voice mode")
+                Switch(checked = state.voiceMode, onCheckedChange = onToggleVoice)
+                Spacer(Modifier.weight(1f, fill = true))
+                Text("Offline sample")
+                Switch(checked = state.offlineMode, onCheckedChange = onToggleOffline)
+            }
 
-    if (state.voiceMode) {
-        VoiceInputRow(
-            state = state,
-            micGranted = micGranted,
-            onRequestMicPermission = onRequestMicPermission,
-            onStartVoiceTurn = onStartVoiceTurn,
-            onStopVoiceTurn = onStopVoiceTurn
-        )
-    } else {
-        Row {
-            OutlinedTextField(
-                value = textInput,
-                onValueChange = onTextChange,
-                modifier = Modifier.weight(1f, fill = true),
-                placeholder = { Text("Type your answer...") }
-            )
-            Button(onClick = onSend, enabled = textInput.isNotBlank() && !state.busy) { Text("Send") }
+            if (state.voiceMode) {
+                VoiceInputRow(
+                    state = state,
+                    micGranted = micGranted,
+                    onRequestMicPermission = onRequestMicPermission,
+                    onStartVoiceTurn = onStartVoiceTurn,
+                    onStopVoiceTurn = onStopVoiceTurn
+                )
+            } else {
+                Row {
+                    OutlinedTextField(
+                        value = textInput,
+                        onValueChange = onTextChange,
+                        modifier = Modifier.weight(1f, fill = true),
+                        placeholder = { Text("Type your answer...") }
+                    )
+                    Button(onClick = onSend, enabled = textInput.isNotBlank() && !state.busy) { Text("Send") }
+                }
+            }
+
+            Spacer(Modifier.height(8.dp))
+            OutlinedButton(onClick = onSnapshot, modifier = Modifier.fillMaxWidth()) {
+                Text("Snapshot this profile's metrics")
+            }
+            Spacer(Modifier.height(16.dp))
         }
-    }
-
-    Spacer(Modifier.height(8.dp))
-    OutlinedButton(onClick = onSnapshot, modifier = Modifier.fillMaxWidth()) {
-        Text("Snapshot this profile's metrics")
     }
 }
 
@@ -267,24 +286,26 @@ private fun MetricsStrip(state: TutorUiState) {
 
 @Composable
 private fun CompareScreen(snapshots: List<MetricsSnapshot>, onBack: () -> Unit) {
-    TextButton(onClick = onBack) { Text("< Back") }
-    Text("Compare snapshots", style = MaterialTheme.typography.titleLarge)
-    Spacer(Modifier.height(16.dp))
-    Row(Modifier.fillMaxWidth()) {
-        snapshots.forEach { snap ->
-            Card(
-                Modifier
-                    .weight(1f, fill = true)
-                    .padding(4.dp)
-            ) {
-                Column(Modifier.padding(8.dp)) {
-                    Text(snap.label, style = MaterialTheme.typography.titleSmall)
-                    Text("Turns: ${snap.metrics.turns}")
-                    Text("Avg words/turn: ${"%.1f".format(snap.metrics.avgWordsPerTurn)}")
-                    Text("Scaffolding steps: ${snap.metrics.totalScaffolding}")
-                    Text("Jokes/tangents: ${snap.metrics.totalJokes}")
-                    Text("Praise markers: ${snap.metrics.totalPraise}")
-                    Text("Avg praise/turn: ${"%.2f".format(snap.metrics.avgPraisePerTurn)}")
+    Column(Modifier.verticalScroll(rememberScrollState())) {
+        TextButton(onClick = onBack) { Text("< Back") }
+        Text("Compare snapshots", style = MaterialTheme.typography.titleLarge)
+        Spacer(Modifier.height(16.dp))
+        Row(Modifier.fillMaxWidth()) {
+            snapshots.forEach { snap ->
+                Card(
+                    Modifier
+                        .weight(1f, fill = true)
+                        .padding(4.dp)
+                ) {
+                    Column(Modifier.padding(8.dp)) {
+                        Text(snap.label, style = MaterialTheme.typography.titleSmall)
+                        Text("Turns: ${snap.metrics.turns}")
+                        Text("Avg words/turn: ${"%.1f".format(snap.metrics.avgWordsPerTurn)}")
+                        Text("Scaffolding steps: ${snap.metrics.totalScaffolding}")
+                        Text("Jokes/tangents: ${snap.metrics.totalJokes}")
+                        Text("Praise markers: ${snap.metrics.totalPraise}")
+                        Text("Avg praise/turn: ${"%.2f".format(snap.metrics.avgPraisePerTurn)}")
+                    }
                 }
             }
         }

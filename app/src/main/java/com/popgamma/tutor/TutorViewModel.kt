@@ -91,7 +91,9 @@ class TutorViewModel(private val apiKey: String) : ViewModel() {
         val question = _state.value.currentBankQuestion ?: return
         val pcm = recorder?.stopAndGetPcm()
         recorder = null
-        _state.update { it.copy(micState = MicState.PROCESSING, busy = true) }
+        // Clear any stale error from an earlier failed attempt -- otherwise a leftover "timeout"
+        // banner can sit on screen indefinitely even after this turn succeeds.
+        _state.update { it.copy(micState = MicState.PROCESSING, busy = true, error = null) }
         viewModelScope.launch {
             val words = resolveWords(question, pcm)
             scoreAndRespond(question, words)

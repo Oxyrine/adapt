@@ -123,7 +123,10 @@ object GeminiClient {
     private const val ENDPOINT = "https://generativelanguage.googleapis.com/v1beta/interactions"
     private const val CHAT_MODEL = "gemini-3.8-flash"
     private const val TRANSCRIBE_MODEL = "gemini-3.5-transcribe"
-    private const val TIMEOUT_SECONDS = 12L // build-now network-failure path: never hang the demo
+    // Verified live: this model spends real time on internal "thinking" tokens before replying
+    // (90 thought tokens for a one-word reply in testing) -- 12s was cutting off normal model
+    // latency, not just genuine network failures, causing spurious timeouts mid-demo.
+    private const val TIMEOUT_SECONDS = 30L // build-now network-failure path: never hang forever
 
     private val json = Json { ignoreUnknownKeys = true }
     private val client = OkHttpClient.Builder()
