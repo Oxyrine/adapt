@@ -83,7 +83,18 @@ class TutorViewModel(private val apiKey: String) : ViewModel() {
      *  the moment Albert's turn (the question) finishes, not on a later user tap. */
     fun startVoiceTurn(question: BankQuestion) {
         if (_state.value.micState != MicState.IDLE) return
-        _state.update { it.copy(currentBankQuestion = question, micState = MicState.RECORDING, error = null) }
+        // Put Albert's question into the transcript -- previously the question bank was just a
+        // silent picker and Albert never actually "asked" anything, which is most of why voice
+        // mode didn't read as a conversation. Not scored/scanned as a real turn (it's a fixed
+        // prompt, not a model reply), so it doesn't skew sessionMetrics.
+        _state.update {
+            it.copy(
+                messages = it.messages + ChatMessage(fromAlbert = true, text = question.prompt),
+                currentBankQuestion = question,
+                micState = MicState.RECORDING,
+                error = null
+            )
+        }
         recorder = MicRecorder().also { it.start() }
     }
 

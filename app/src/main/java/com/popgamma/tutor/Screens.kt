@@ -12,6 +12,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.material3.Button
+import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Card
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.LinearProgressIndicator
@@ -235,18 +236,36 @@ private fun VoiceInputRow(
     }
     Column {
         Text("Question bank", style = MaterialTheme.typography.labelLarge)
+        Text(
+            // Recording starts the instant "Ask" is tapped, not after -- the latency signal
+            // (Section 3a) needs the leading silence before you speak, so there's no separate
+            // "start recording" step. This line exists because that isn't obvious from the UI alone.
+            "Tap Ask, then speak your answer right away -- the mic starts immediately. Tap Done when finished.",
+            style = MaterialTheme.typography.bodySmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant
+        )
+        Spacer(Modifier.height(4.dp))
         QuestionBank.questions.forEach { q ->
+            val isRecordingThis = state.micState == MicState.RECORDING && state.currentBankQuestion == q
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Text(q.prompt, Modifier.weight(1f, fill = true))
                 when {
-                    state.micState == MicState.RECORDING && state.currentBankQuestion == q ->
-                        // Mic auto-armed the instant this question was asked (Finding 3) --
-                        // Done just stops the clip, it doesn't start the measurement.
-                        Button(onClick = onStopVoiceTurn) { Text("Done") }
+                    isRecordingThis ->
+                        Button(
+                            onClick = onStopVoiceTurn,
+                            colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.error)
+                        ) { Text("● Done") }
                     state.micState == MicState.IDLE ->
                         Button(onClick = { onStartVoiceTurn(q) }, enabled = !state.busy) { Text("Ask") }
                     else -> {}
                 }
+            }
+            if (isRecordingThis) {
+                Text(
+                    "🎙 Recording -- speak now",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.error
+                )
             }
         }
         if (state.micState == MicState.PROCESSING) {
