@@ -138,7 +138,7 @@ object GeminiClient {
     suspend fun chat(apiKey: String, prompt: String): GeminiResult<String> = withContext(Dispatchers.IO) {
         try {
             val body = InteractionRequest(model = CHAT_MODEL, input = listOf(ContentPart(type = "text", text = prompt)))
-            val responseBody = post(apiKey, body)
+            val responseBody = postWithRetry(apiKey, body)
             val text = json.decodeFromString<InteractionResponse>(responseBody).modelOutputText()
             if (text.isNullOrBlank()) GeminiResult.Failure("Empty response from tutor model") else GeminiResult.Success(text)
         } catch (e: Exception) {
@@ -154,12 +154,27 @@ object GeminiClient {
                     input = listOf(ContentPart(type = "audio", data = wavBase64, mimeType = "audio/wav")),
                     generationConfig = GenerationConfig(transcriptionConfig = TranscriptionConfig())
                 )
-                val responseBody = post(apiKey, body)
+                val responseBody = postWithRetry(apiKey, body)
                 val words = json.decodeFromString<InteractionResponse>(responseBody).wordList()
                 GeminiResult.Success(words)
             } catch (e: Exception) {
                 GeminiResult.Failure(e.message ?: "Network error")
             }
+        }
+
+    // Carries the HTTP status code so postWithRetry can tell a transient server error (5xx,
+    // worth retrying once) from a client error (4xx, retrying won't help).
+    private class HttpException(val code: Int, message: String) : IOException(message)
+
+    /** One retry for a transient 5xx only -- found necessary after a live HTTP 500 that could not
+     *  be reproduced (a healthy re-send of the same prompt shape succeeded), suggesting a one-off
+     *  server-side blip rather than a request problem. Not retried for 4xx: a bad request stays
+     *  bad on a second try. */
+    private fun postWithRetry(apiKey: String, body: InteractionRequest): String =
+        try {
+            post(apiKey, body)
+        } catch (e: HttpException) {
+            if (e.code in 500..599) post(apiKey, body) else throw e
         }
 
     private fun post(apiKey: String, body: InteractionRequest): String {
@@ -170,8 +185,15 @@ object GeminiClient {
             .post(payload.toRequestBody("application/json".toMediaType()))
             .build()
         client.newCall(request).execute().use { resp ->
-            if (!resp.isSuccessful) throw IOException("HTTP ${resp.code}: ${resp.message}")
-            return resp.body?.string() ?: throw IOException("Empty response body")
+            val responseText = resp.body?.string()
+            if (!resp.isSuccessful) {
+                // Previously discarded the response body entirely -- an error surfaced as just
+                // "HTTP 500:" with nothing after the colon (OkHttp's reason phrase is often empty
+                // for HTTP/2 responses) and no way to tell why. Truncated to keep the error banner
+                // readable.
+                throw HttpException(resp.code, "HTTP ${resp.code}: ${responseText?.take(300) ?: "(no body)"}")
+            }
+            return responseText ?: throw IOException("Empty response body")
         }
     }
 }
