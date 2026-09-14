@@ -13,8 +13,11 @@ import androidx.core.content.ContextCompat
 import androidx.lifecycle.viewmodel.compose.viewModel
 
 class MainActivity : ComponentActivity() {
+    private var albertVoice: AlbertVoice? = null
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        albertVoice = AlbertVoice(this)
 
         var micGranted by mutableStateOf(
             ContextCompat.checkSelfPermission(this, Manifest.permission.RECORD_AUDIO) == PackageManager.PERMISSION_GRANTED
@@ -25,11 +28,18 @@ class MainActivity : ComponentActivity() {
 
         setContent {
             val viewModel: TutorViewModel = viewModel(factory = TutorViewModelFactory(BuildConfig.GEMINI_API_KEY))
+            viewModel.voiceEngine = albertVoice
             TutorApp(
                 viewModel = viewModel,
                 micGranted = micGranted,
                 onRequestMicPermission = { requestPermission.launch(Manifest.permission.RECORD_AUDIO) }
             )
         }
+    }
+
+    override fun onDestroy() {
+        super.onDestroy()
+        albertVoice?.shutdown()
+        albertVoice = null
     }
 }
