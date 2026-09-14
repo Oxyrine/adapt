@@ -10,7 +10,9 @@ export interface GeminiResult<T> {
 // capture. The Gemini version of this file only got its response shape right after real curl
 // calls proved the docs wrong -- verify this one against a real key before trusting it in a demo.
 export const GroqClient = {
-  CHAT_MODEL: 'llama-3.1-8b-instant',
+  // llama-3.1-8b-instant got 404'd live (model_not_found) -- Groq rotates model availability.
+  // llama-3.3-70b-versatile is their current flagship production model, least likely to vanish.
+  CHAT_MODEL: 'llama-3.3-70b-versatile',
   TRANSCRIBE_MODEL: 'whisper-large-v3', // word timestamps need the full model, not -turbo
 
   async chat(apiKey: string, prompt: string): Promise<GeminiResult<string>> {
