@@ -10,9 +10,10 @@ export interface GeminiResult<T> {
 // capture. The Gemini version of this file only got its response shape right after real curl
 // calls proved the docs wrong -- verify this one against a real key before trusting it in a demo.
 export const GroqClient = {
-  // llama-3.1-8b-instant got 404'd live (model_not_found) -- Groq rotates model availability.
-  // llama-3.3-70b-versatile is their current flagship production model, least likely to vanish.
-  CHAT_MODEL: 'llama-3.3-70b-versatile',
+  // Two guessed llama-3.x model ids both 404'd (model_not_found) -- this key's account has no
+  // llama-3.x models at all. Confirmed via GET /openai/v1/models against the real key: this is
+  // one of the ids that actually came back, not another guess.
+  CHAT_MODEL: 'openai/gpt-oss-20b',
   TRANSCRIBE_MODEL: 'whisper-large-v3', // word timestamps need the full model, not -turbo
 
   async chat(apiKey: string, prompt: string): Promise<GeminiResult<string>> {

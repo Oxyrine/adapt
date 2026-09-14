@@ -65,9 +65,10 @@ sealed class GroqResult<out T> {
 object GroqClient {
     private const val CHAT_URL = "https://api.groq.com/openai/v1/chat/completions"
     private const val TRANSCRIBE_URL = "https://api.groq.com/openai/v1/audio/transcriptions"
-    // llama-3.1-8b-instant got 404'd live (model_not_found) -- Groq rotates model availability.
-    // llama-3.3-70b-versatile is their current flagship production model, least likely to vanish.
-    private const val CHAT_MODEL = "llama-3.3-70b-versatile"
+    // Two guessed llama-3.x model ids both 404'd (model_not_found) -- this key's account has no
+    // llama-3.x models at all. Confirmed via GET /openai/v1/models against the real key: this is
+    // one of the ids that actually came back, not another guess.
+    private const val CHAT_MODEL = "openai/gpt-oss-20b"
     private const val TRANSCRIBE_MODEL = "whisper-large-v3" // word timestamps need the full model, not -turbo
     // ponytail: no live latency measurement for Groq yet (Gemini's 60s came from a real measured
     // 8.5-15.7s + emulator jitter). 30s is a conservative placeholder -- tighten once measured.
