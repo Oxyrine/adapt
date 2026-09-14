@@ -149,9 +149,11 @@ object GeminiClient {
     private const val ENDPOINT = "https://generativelanguage.googleapis.com/v1beta/interactions"
     private const val CHAT_MODEL = "gemini-3.5-flash-lite"
     private const val TRANSCRIBE_MODEL = "gemini-3.5-transcribe"
-    // Ultra-fast response time: gemini-3.5-flash-lite completes in <1 second (benchmarked ~750ms)
-    // without thinking-token latency overhead. 12s timeout ensures the app never stalls.
-    private const val TIMEOUT_SECONDS = 12L
+    // generateContent is fast (~750ms benchmarked), but transcribeWithTimestamps below never uses
+    // it -- it's stuck on the older interactions endpoint, measured live at 8.5-15.7s of server
+    // compute plus up to 502ms of emulator NAT jitter (see plan Verification notes). 12s reintroduces
+    // the exact timeout bug that was fixed once already; keeping 60s for real headroom.
+    private const val TIMEOUT_SECONDS = 60L
 
     private val json = Json { ignoreUnknownKeys = true }
     private val client = OkHttpClient.Builder()
@@ -165,7 +167,7 @@ object GeminiClient {
 
         // 1. Primary path: ultra-fast generateContent with gemini-3.5-flash-lite (~750ms)
         try {
-            val generateUrl = "https://generativelanguage.googleapis.com/v1beta/models/$CHAT_MODEL:generateContent?key=$apiKey"
+            val generateUrl = "https://generativelanguage.googleapis.com/v1beta/models/$CHAT_MODEL:generateContent"
             val reqBody = GenerateContentRequest(
                 contents = listOf(GenerateContentItem(parts = listOf(GeneratePart(text = prompt)))),
                 generationConfig = GenerateConfig(temperature = 0.7f, maxOutputTokens = 250)
@@ -173,6 +175,7 @@ object GeminiClient {
             val payload = json.encodeToString(GenerateContentRequest.serializer(), reqBody)
             val request = Request.Builder()
                 .url(generateUrl)
+                .addHeader("x-goog-api-key", apiKey) // header, not ?key= -- keeps it out of proxy/server logs
                 .post(payload.toRequestBody("application/json".toMediaType()))
                 .build()
             client.newCall(request).execute().use { resp ->
