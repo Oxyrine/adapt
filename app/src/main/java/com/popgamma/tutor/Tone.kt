@@ -47,9 +47,9 @@ object PromptBuilder {
         }
         val encouragementText = when (profile.encouragement) {
             EncouragementLevel.STANDARD ->
-                "Acknowledge correct effort with genuine praise."
+                "Acknowledge correct effort with genuine praise, using a recognizable phrase like \"good job\", \"nice work\", or \"well done\"."
             EncouragementLevel.HIGH ->
-                "Praise effort often and specifically -- this student needs to feel supported, not just corrected."
+                "Praise effort often and specifically -- this student needs to feel supported, not just corrected. Use warm, explicit praise like \"great job\" or \"you got it\"."
         }
         return """
             You are Prof. Albert, a tutor. $structureText $encouragementText
@@ -77,6 +77,17 @@ object PromptBuilder {
             }
             append("\nStudent: ")
             append(userText)
-            append("\n\nInstruction: Reply directly in 1 to 2 concise sentences suitable for spoken conversation. Do not use markdown, bullets, or asterisks.")
+            // A flat "1 to 2 sentences" cap here used to override whatever the routing addendum
+            // above asked for -- a confident-wrong answer's "walk through the misconception
+            // directly" got squashed to the same length as a plain move-on, so every reply read
+            // identically regardless of band/correctness. Length now follows what was actually
+            // asked for instead of a fixed cap.
+            append(
+                "\n\nInstruction: Reply directly, suitable for spoken conversation -- no markdown, " +
+                    "bullets, or asterisks. Match the length to what was actually asked: a quick " +
+                    "move-on or gentle correction is one short sentence, but when asked to explain " +
+                    "a misconception or walk through reasoning, take three or four sentences and " +
+                    "actually do it -- do not compress a real explanation into one line."
+            )
         }
 }
