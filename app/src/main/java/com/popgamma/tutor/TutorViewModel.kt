@@ -74,9 +74,9 @@ class TutorViewModel(private val apiKey: String) : ViewModel() {
         viewModelScope.launch {
             try {
                 val prompt = PromptBuilder.buildPrompt(profile, addendum = null, history = conversationContext(), userText = userText)
-                when (val result = GeminiClient.chat(apiKey, prompt)) {
-                    is GeminiResult.Success -> applyReply(result.value)
-                    is GeminiResult.Failure -> {
+                when (val result = GroqClient.chat(apiKey, prompt)) {
+                    is GroqResult.Success -> applyReply(result.value)
+                    is GroqResult.Failure -> {
                         _state.update { it.copy(error = "${result.message} -- showing an offline reply") }
                         applyReply(FallbackReplies.reply(profile))
                     }
@@ -143,10 +143,10 @@ class TutorViewModel(private val apiKey: String) : ViewModel() {
         if (_state.value.offlineMode || pcm == null || pcm.isEmpty()) {
             return offlineFixtureFor(question)
         }
-        val wavBase64 = WavEncoder.pcmToWavBase64(pcm)
-        return when (val result = GeminiClient.transcribeWithTimestamps(apiKey, wavBase64)) {
-            is GeminiResult.Success -> result.value
-            is GeminiResult.Failure -> {
+        val wavBytes = WavEncoder.pcmToWav(pcm)
+        return when (val result = GroqClient.transcribeWithTimestamps(apiKey, wavBytes)) {
+            is GroqResult.Success -> result.value
+            is GroqResult.Failure -> {
                 // Build-now network-failure path: degrade to "canned but honest" rather than
                 // stalling or crashing a live demo -- see plan's promoted section.
                 _state.update { it.copy(error = "${result.message} -- using offline sample", offlineMode = true) }
@@ -186,9 +186,9 @@ class TutorViewModel(private val apiKey: String) : ViewModel() {
 
         val addendum = Routing.promptAddendum(correct, band)
         val prompt = PromptBuilder.buildPrompt(profile, addendum, conversationContext(), transcript)
-        when (val result = GeminiClient.chat(apiKey, prompt)) {
-            is GeminiResult.Success -> applyReply(result.value)
-            is GeminiResult.Failure -> {
+        when (val result = GroqClient.chat(apiKey, prompt)) {
+            is GroqResult.Success -> applyReply(result.value)
+            is GroqResult.Failure -> {
                 _state.update { it.copy(error = "${result.message} -- showing an offline reply") }
                 applyReply(FallbackReplies.reply(profile, correct, band))
             }

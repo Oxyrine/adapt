@@ -27,7 +27,7 @@ class MainActivity : ComponentActivity() {
         }
 
         setContent {
-            val viewModel: TutorViewModel = viewModel(factory = TutorViewModelFactory(BuildConfig.GEMINI_API_KEY))
+            val viewModel: TutorViewModel = viewModel(factory = TutorViewModelFactory(BuildConfig.GROQ_API_KEY))
             viewModel.voiceEngine = albertVoice
             TutorApp(
                 viewModel = viewModel,

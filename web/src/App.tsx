@@ -17,7 +17,7 @@ import { ConfidenceScorer, OfflineFixtures, ConfidenceThresholds } from './logic
 import { QuestionBank } from './logic/questionBank';
 import { MetricsScanner, createInitialSessionMetrics, addTurnToMetrics, getAvgWords, getAvgPraise } from './logic/metrics';
 import { FallbackReplies } from './logic/fallbackReplies';
-import { GeminiClient } from './logic/gemini';
+import { GroqClient } from './logic/groq';
 import { AudioRecorder } from './logic/audioRecorder';
 import {
   Settings,
@@ -37,7 +37,7 @@ export const App: React.FC = () => {
   const [screen, setScreen] = useState<Screen>('PROFILE');
   const [phoneFrame, setPhoneFrame] = useState<boolean>(true);
   const [showSettings, setShowSettings] = useState<boolean>(false);
-  const [apiKey, setApiKey] = useState<string>(() => localStorage.getItem('gemini_api_key') || (import.meta as any).env?.VITE_GEMINI_API_KEY || '');
+  const [apiKey, setApiKey] = useState<string>(() => localStorage.getItem('groq_api_key') || (import.meta as any).env?.VITE_GROQ_API_KEY || '');
 
   // App State matching TutorViewModel
   const [performance, setPerformance] = useState<Performance | null>(null);
@@ -61,7 +61,7 @@ export const App: React.FC = () => {
   const [vadSilenceDelayMs, setVadSilenceDelayMs] = useState<number>(900); // 900ms silence auto-stop
   const [isSpeaking, setIsSpeaking] = useState<boolean>(false);
   const [isAlbertSpeaking, setIsAlbertSpeaking] = useState<boolean>(false);
-  const [speechEngine, setSpeechEngine] = useState<'AUTO' | 'GEMINI_AUDIO' | 'WEB_SPEECH'>('AUTO');
+  const [speechEngine, setSpeechEngine] = useState<'AUTO' | 'GROQ_AUDIO' | 'WEB_SPEECH'>('AUTO');
   const [audioLevel, setAudioLevel] = useState<number>(0);
 
   // Speech Recognition & Audio Recorder Refs
@@ -118,7 +118,7 @@ export const App: React.FC = () => {
 
   const saveApiKey = (key: string) => {
     setApiKey(key);
-    localStorage.setItem('gemini_api_key', key.trim());
+    localStorage.setItem('groq_api_key', key.trim());
   };
 
   const handleVoiceSelect = (uri: string) => {
@@ -297,7 +297,7 @@ export const App: React.FC = () => {
       return;
     }
 
-    const result = await GeminiClient.chat(apiKey, prompt);
+    const result = await GroqClient.chat(apiKey, prompt);
     if (result.success && result.value) {
       applyReply(result.value);
     } else {
@@ -356,7 +356,7 @@ export const App: React.FC = () => {
 
   const startDirectAudioRecording = async (_question: BankQuestion) => {
     cleanupAudioCapture();
-    setVadStatus('🎙️ Listening (Direct Gemini Audio)... speak now!');
+    setVadStatus('🎙️ Listening (Direct Groq Audio)... speak now!');
     recordingStartTimeRef.current = Date.now();
     isListeningRef.current = true;
     transcriptBufferRef.current = '';
@@ -374,7 +374,7 @@ export const App: React.FC = () => {
           setVadStatus('🎙️ Speech detected... listening!');
         },
         onSilenceDetected: () => {
-          setVadStatus('Silence detected — transcribing via Gemini...');
+          setVadStatus('Silence detected — transcribing via Groq...');
           handleStopVoiceTurn();
         }
       });
@@ -393,16 +393,16 @@ export const App: React.FC = () => {
     setLiveTranscript('');
     setIsSpeaking(false);
 
-    // If user selected Direct Gemini Audio or if Web Speech previously failed:
-    if (speechEngine === 'GEMINI_AUDIO') {
+    // If user selected Direct Groq Audio or if Web Speech previously failed:
+    if (speechEngine === 'GROQ_AUDIO') {
       startDirectAudioRecording(question);
       return;
     }
 
     const SpeechRecognition = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
     if (!SpeechRecognition) {
-      console.log('Web Speech API not available; using Direct Gemini Audio');
-      setSpeechEngine('GEMINI_AUDIO');
+      console.log('Web Speech API not available; using Direct Groq Audio');
+      setSpeechEngine('GROQ_AUDIO');
       startDirectAudioRecording(question);
       return;
     }
@@ -476,10 +476,10 @@ export const App: React.FC = () => {
       recognition.onerror = (event: any) => {
         console.warn('SpeechRecognition error:', event.error);
         if (event.error === 'network') {
-          // Automatic seamless failover to Direct Gemini Audio!
-          console.warn('Browser Speech API network blocked — switching to Direct Gemini Audio');
-          setVadStatus('Browser speech service blocked by network/browser — switched to Direct Gemini Audio!');
-          setSpeechEngine('GEMINI_AUDIO');
+          // Automatic seamless failover to Direct Groq Audio!
+          console.warn('Browser Speech API network blocked — switching to Direct Groq Audio');
+          setVadStatus('Browser speech service blocked by network/browser — switched to Direct Groq Audio!');
+          setSpeechEngine('GROQ_AUDIO');
           startDirectAudioRecording(question);
           return;
         }
@@ -518,7 +518,7 @@ export const App: React.FC = () => {
       recognitionRef.current = recognition;
     } catch (err: any) {
       console.warn('SpeechRecognition error; switching to Direct Audio:', err);
-      setSpeechEngine('GEMINI_AUDIO');
+      setSpeechEngine('GROQ_AUDIO');
       startDirectAudioRecording(question);
     }
   };
@@ -539,12 +539,12 @@ export const App: React.FC = () => {
       return;
     }
 
-    // If Direct Gemini Audio recorded audio and we don't have a transcript yet:
+    // If Direct Groq Audio recorded audio and we don't have a transcript yet:
     if (directResult && directResult.wavBase64 && !transcriptBufferRef.current.trim()) {
-      setVadStatus('Transcribing speech with Gemini...');
+      setVadStatus('Transcribing speech with Groq...');
       let transcribed = '';
       if (apiKey.trim() && !offlineMode) {
-        const tr = await GeminiClient.transcribeAudio(apiKey, directResult.wavBase64);
+        const tr = await GroqClient.transcribeAudio(apiKey, directResult.wavBase64);
         if (tr.success && tr.value) {
           transcribed = tr.value;
         }
@@ -607,7 +607,7 @@ export const App: React.FC = () => {
       return;
     }
 
-    const result = await GeminiClient.chat(apiKey, prompt);
+    const result = await GroqClient.chat(apiKey, prompt);
     if (result.success && result.value) {
       applyReply(result.value);
     } else {
@@ -654,7 +654,7 @@ export const App: React.FC = () => {
           <button
             className="btn-icon"
             onClick={() => setShowSettings(true)}
-            title="Configure Gemini API Key"
+            title="Configure Groq API Key"
           >
             <Settings size={18} />
             <span className="btn-label">{apiKey ? 'API Key Set' : 'Set API Key'}</span>
@@ -905,20 +905,20 @@ export const App: React.FC = () => {
                       <span>Question Bank</span>
                       <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
                         <button
-                          onClick={() => setSpeechEngine(prev => prev === 'GEMINI_AUDIO' ? 'WEB_SPEECH' : 'GEMINI_AUDIO')}
+                          onClick={() => setSpeechEngine(prev => prev === 'GROQ_AUDIO' ? 'WEB_SPEECH' : 'GROQ_AUDIO')}
                           style={{
                             fontSize: '10px',
                             fontWeight: 600,
                             padding: '2px 8px',
-                            background: speechEngine === 'GEMINI_AUDIO' ? '#dbeafe' : '#f1f5f9',
-                            color: speechEngine === 'GEMINI_AUDIO' ? '#1d4ed8' : '#475569',
+                            background: speechEngine === 'GROQ_AUDIO' ? '#dbeafe' : '#f1f5f9',
+                            color: speechEngine === 'GROQ_AUDIO' ? '#1d4ed8' : '#475569',
                             border: '1px solid #cbd5e1',
                             borderRadius: '4px',
                             cursor: 'pointer'
                           }}
-                          title="Click to toggle between Direct Gemini Audio (works on Brave/VPNs) and Browser Web Speech"
+                          title="Click to toggle between Direct Groq Audio (works on Brave/VPNs) and Browser Web Speech"
                         >
-                          {speechEngine === 'GEMINI_AUDIO' ? '🎙️ Gemini Audio' : '⚡ Web Speech'}
+                          {speechEngine === 'GROQ_AUDIO' ? '🎙️ Groq Audio' : '⚡ Web Speech'}
                         </button>
                         <small>Auto-detects silence</small>
                       </div>
@@ -1114,12 +1114,12 @@ export const App: React.FC = () => {
               {/* API Key */}
               <div>
                 <label style={{ display: 'block', fontSize: '13px', fontWeight: 600, marginBottom: '4px' }}>
-                  Google Gemini API Key
+                  Groq API Key
                 </label>
                 <input
                   type="password"
                   className="modal-input"
-                  placeholder="AIzaSy..."
+                  placeholder="gsk_..."
                   value={apiKey}
                   onChange={e => saveApiKey(e.target.value)}
                 />
@@ -1146,12 +1146,12 @@ export const App: React.FC = () => {
                     fontSize: '13px'
                   }}
                 >
-                  <option value="AUTO">Auto (Web Speech with automatic Gemini failover)</option>
-                  <option value="GEMINI_AUDIO">Direct Gemini Audio (Works everywhere, Brave & VPNs)</option>
+                  <option value="AUTO">Auto (Web Speech with automatic Groq failover)</option>
+                  <option value="GROQ_AUDIO">Direct Groq Audio (Works everywhere, Brave & VPNs)</option>
                   <option value="WEB_SPEECH">Browser Web Speech API (Chrome/Edge only)</option>
                 </select>
                 <p className="hint" style={{ marginTop: '4px' }}>
-                  If your browser gives a network error, <strong>Direct Gemini Audio</strong> bypasses browser cloud limits and transcribes using your API key.
+                  If your browser gives a network error, <strong>Direct Groq Audio</strong> bypasses browser cloud limits and transcribes using your API key.
                 </p>
               </div>
 

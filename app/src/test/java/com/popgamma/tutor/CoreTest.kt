@@ -228,44 +228,38 @@ class CoreTest {
         assertNotEquals(confidentWrong, confidentRight)
     }
 
-    // ---- Gemini response parsing -- payloads below are trimmed but otherwise verbatim from real
-    // curl calls made against the live API during setup, not hand-guessed from docs. The docs never
-    // showed a full response body; this is what actually locks the parsing contract in place. ----
+    // ---- Groq response parsing -- payloads below follow Groq's documented OpenAI-compatible
+    // shape, NOT a live-captured response (unlike the Gemini contract, which only got locked down
+    // after real curl calls exposed the docs were wrong -- see plan Finding 2). ponytail: treat
+    // this contract as unverified until it's been checked against a real key, same lesson. ----
 
     private val json = Json { ignoreUnknownKeys = true }
 
     @Test
-    fun `modelOutputText skips thought steps and reads the model_output step`() {
-        // Captured from a real gemini-3.8-flash chat call.
+    fun `text reads the first choice's message content`() {
         val body = """
-            {"id":"v1_test","status":"completed","steps":[
-                {"signature":"EosDCogDARFNMg...","type":"thought"},
-                {"content":[{"text":"OK","type":"text"}],"type":"model_output"}
-            ],"object":"interaction","model":"gemini-3.8-flash"}
+            {"choices":[
+                {"message":{"role":"assistant","content":"OK"},"finish_reason":"stop"}
+            ]}
         """.trimIndent()
-        val response = json.decodeFromString<InteractionResponse>(body)
-        assertEquals("OK", response.modelOutputText())
+        val response = json.decodeFromString<ChatCompletionResponse>(body)
+        assertEquals("OK", response.text())
     }
 
     @Test
-    fun `wordList parses second-based offset strings into milliseconds`() {
-        // Captured from a real gemini-3.5-transcribe call with word timestamps enabled, for a
-        // spoken "um, I think it's twelve" -- note the model already normalized "twelve" to "12."
-        // (see QuestionBank's digit-form handling) and offsets arrive as strings like "0.100s" and
-        // "1s", not integers.
+    fun `wordList parses float-second word timestamps into milliseconds`() {
+        // Groq's verbose_json + timestamp_granularities=word returns start/end as plain float
+        // seconds, not Gemini's "0.100s" strings -- for a spoken "um, I think it's twelve".
         val body = """
-            {"id":"v1_test2","status":"completed","steps":[{"content":[{
-                "text":"Um, I think it's 12.",
-                "annotations":[
-                    {"start_index":0,"end_index":3,"text":"Um,","start_offset":"0.100s","end_offset":"0.600s","type":"word_info"},
-                    {"start_index":4,"end_index":5,"text":"I","start_offset":"0.800s","end_offset":"1s","type":"word_info"},
-                    {"start_index":6,"end_index":11,"text":"think","start_offset":"1s","end_offset":"1.200s","type":"word_info"},
-                    {"start_index":12,"end_index":16,"text":"it's","start_offset":"1.200s","end_offset":"1.400s","type":"word_info"},
-                    {"start_index":17,"end_index":20,"text":"12.","start_offset":"1.400s","end_offset":"1.900s","type":"word_info"}
-                ],"type":"text"
-            }],"type":"model_output"}],"object":"interaction","model":"gemini-3.5-transcribe"}
+            {"text":"Um, I think it's twelve.","words":[
+                {"word":"Um,","start":0.1,"end":0.6},
+                {"word":"I","start":0.8,"end":1.0},
+                {"word":"think","start":1.0,"end":1.2},
+                {"word":"it's","start":1.2,"end":1.4},
+                {"word":"twelve.","start":1.4,"end":1.9}
+            ]}
         """.trimIndent()
-        val words = json.decodeFromString<InteractionResponse>(body).wordList()
+        val words = json.decodeFromString<TranscriptionResponse>(body).wordList()
 
         assertEquals(5, words.size)
         assertEquals("Um,", words[0].text)
@@ -273,14 +267,11 @@ class CoreTest {
         assertEquals(600L, words[0].endMs)
         assertEquals("I", words[1].text)
         assertEquals(800L, words[1].startMs)
-        assertEquals(1000L, words[1].endMs) // "1s" -> 1000ms, not a parse failure defaulting to 0
+        assertEquals(1000L, words[1].endMs)
 
-        // End-to-end check that the live response shape flows into a real band. This sample was
-        // synthesized speech that started almost instantly (100ms), so only the hedge signal
-        // crosses its threshold -- latency doesn't -- landing HIGH under the "2 of 3" rule, not
-        // LOW. That's not a bug: a fast hedge alone isn't enough on its own, which is exactly the
-        // kind of threshold sensitivity the plan already flagged as needing in-room calibration
-        // (ConfidenceThresholds), not something to hardcode an assumption about here.
+        // End-to-end check that this response shape flows into a real band -- same fixture timing
+        // as the Gemini version had: fast start (100ms) so only the hedge signal crosses its
+        // threshold, landing HIGH under the "2 of 3" rule, not LOW.
         val signals = ConfidenceScorer.score(words)
         assertTrue(signals.hedgeRate > ConfidenceThresholds.HEDGE_RATE)
         assertTrue(signals.latencyMs <= ConfidenceThresholds.LATENCY_MS)

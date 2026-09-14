@@ -7,7 +7,7 @@ plugins {
     id("org.jetbrains.kotlin.plugin.compose")
 }
 
-// Demo-only key loading: local.properties -> BuildConfig -> BuildConfig.GEMINI_API_KEY.
+// Demo-only key loading: local.properties -> BuildConfig -> BuildConfig.GROQ_API_KEY.
 // local.properties is gitignored. The key still ships inside the APK -- fine for a demo,
 // not for a shipped build. A real build needs a backend proxy (spec Section 6).
 val localProperties = Properties().apply {
@@ -28,8 +28,8 @@ android {
 
         buildConfigField(
             "String",
-            "GEMINI_API_KEY",
-            "\"${localProperties.getProperty("GEMINI_API_KEY", "")}\""
+            "GROQ_API_KEY",
+            "\"${localProperties.getProperty("GROQ_API_KEY", "")}\""
         )
     }
 
