@@ -14,9 +14,14 @@ data class TurnMetrics(
 )
 
 object MetricsScanner {
+    // Sorted by descending length so multi-word phrases match before single words
     private val PRAISE_MARKERS = listOf(
-        "good job", "good", "that's right", "nice work", "well done", "great job",
-        "exactly", "you got it", "nicely done", "great work", "awesome", "perfect"
+        "that's right", "nicely done", "great work", "you got it", "nice work",
+        "well done", "great job", "good job", "exactly", "awesome", "perfect", "good"
+    )
+    private val PRAISE_PATTERN = Regex(
+        "\\b(" + PRAISE_MARKERS.joinToString("|") { Regex.escape(it) } + ")\\b",
+        RegexOption.IGNORE_CASE
     )
     private val SCAFFOLD_MARKERS = listOf("first,", "first ", "next,", "next ", "then,", "then ")
     private val NUMBERED_LINE = Regex("""\n\s*\d+[.)]\s""")
@@ -27,7 +32,7 @@ object MetricsScanner {
         val wordCount = reply.trim().split(Regex("\\s+")).count { it.isNotBlank() }
         val scaffoldingSteps = SCAFFOLD_MARKERS.count { lower.contains(it) } + NUMBERED_LINE.findAll(reply).count()
         val jokeTangentCount = JOKE_MARKERS.count { lower.contains(it) }
-        val praiseMarkers = PRAISE_MARKERS.sumOf { marker -> Regex(Regex.escape(marker)).findAll(lower).count() }
+        val praiseMarkers = PRAISE_PATTERN.findAll(reply).count()
         return TurnMetrics(wordCount, scaffoldingSteps, jokeTangentCount, praiseMarkers)
     }
 }

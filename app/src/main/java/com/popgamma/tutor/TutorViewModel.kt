@@ -50,6 +50,7 @@ class TutorViewModel(private val apiKey: String) : ViewModel() {
     val state: StateFlow<TutorUiState> = _state
 
     private var recorder: MicRecorder? = null
+    var voiceEngine: AlbertVoice? = null
 
     fun selectProfile(performance: Performance, regularity: Regularity) {
         _state.update {
@@ -71,13 +72,20 @@ class TutorViewModel(private val apiKey: String) : ViewModel() {
             it.copy(messages = it.messages + ChatMessage(fromAlbert = false, text = userText), busy = true, error = null)
         }
         viewModelScope.launch {
-            val prompt = PromptBuilder.buildPrompt(profile, addendum = null, history = conversationContext(), userText = userText)
-            when (val result = GeminiClient.chat(apiKey, prompt)) {
-                is GeminiResult.Success -> applyReply(result.value)
-                is GeminiResult.Failure -> {
-                    _state.update { it.copy(error = "${result.message} -- showing an offline reply") }
-                    applyReply(FallbackReplies.reply(profile))
+            try {
+                val prompt = PromptBuilder.buildPrompt(profile, addendum = null, history = conversationContext(), userText = userText)
+                when (val result = GeminiClient.chat(apiKey, prompt)) {
+                    is GeminiResult.Success -> applyReply(result.value)
+                    is GeminiResult.Failure -> {
+                        _state.update { it.copy(error = "${result.message} -- showing an offline reply") }
+                        applyReply(FallbackReplies.reply(profile))
+                    }
                 }
+            } catch (e: Exception) {
+                _state.update { it.copy(error = "${e.message ?: "Unexpected error"} -- showing an offline reply") }
+                applyReply(FallbackReplies.reply(profile))
+            } finally {
+                _state.update { it.copy(busy = false) }
             }
         }
     }
@@ -98,7 +106,14 @@ class TutorViewModel(private val apiKey: String) : ViewModel() {
                 error = null
             )
         }
-        recorder = MicRecorder().also { it.start() }
+        val voice = voiceEngine
+        if (voice != null) {
+            voice.speak(question.prompt, _state.value.toneProfile) {
+                recorder = MicRecorder(onSilenceDetected = { stopVoiceTurnAndScore() }).also { it.start() }
+            }
+        } else {
+            recorder = MicRecorder(onSilenceDetected = { stopVoiceTurnAndScore() }).also { it.start() }
+        }
     }
 
     fun stopVoiceTurnAndScore() {
@@ -109,8 +124,18 @@ class TutorViewModel(private val apiKey: String) : ViewModel() {
         // banner can sit on screen indefinitely even after this turn succeeds.
         _state.update { it.copy(micState = MicState.PROCESSING, busy = true, error = null) }
         viewModelScope.launch {
-            val words = resolveWords(question, pcm)
-            scoreAndRespond(question, words)
+            try {
+                val words = resolveWords(question, pcm)
+                scoreAndRespond(question, words)
+            } catch (e: Exception) {
+                val profile = _state.value.toneProfile
+                if (profile != null) {
+                    _state.update { it.copy(error = "${e.message ?: "Voice processing error"} -- showing an offline reply") }
+                    applyReply(FallbackReplies.reply(profile))
+                }
+            } finally {
+                _state.update { it.copy(busy = false, micState = MicState.IDLE, currentBankQuestion = null) }
+            }
         }
     }
 
@@ -180,6 +205,11 @@ class TutorViewModel(private val apiKey: String) : ViewModel() {
                 micState = MicState.IDLE,
                 currentBankQuestion = null
             )
+        }
+        try {
+            voiceEngine?.speak(reply, _state.value.toneProfile)
+        } catch (_: Exception) {
+            // TTS failure should never crash the session
         }
     }
 

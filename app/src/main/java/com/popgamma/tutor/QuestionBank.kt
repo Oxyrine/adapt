@@ -27,18 +27,23 @@ object QuestionBank {
     )
 
     fun isCorrect(question: BankQuestion, transcript: String): Boolean {
-        fun normalize(s: String) = s.lowercase().trim()
+        fun normalize(s: String) = s.lowercase()
+            .replace('-', ' ')
+            .replace(Regex("""\b(\d+)(st|nd|rd|th)\b"""), "$1")
+            .replace("twelfth", "twelve")
             .replace(Regex("[^a-z0-9 ]"), "")
             .replace(Regex("\\s+"), " ")
+            .trim()
         val normalizedTranscript = normalize(transcript)
-        if (normalizedTranscript.contains(normalize(question.expectedAnswer))) return true
+        val normalizedExpected = normalize(question.expectedAnswer)
+        if (Regex("\\b" + Regex.escape(normalizedExpected) + "\\b").containsMatchIn(normalizedTranscript)) return true
 
         // Verified against the live API: Gemini's transcription normalizes spoken numbers to
         // digits even in verbatim mode ("twelve" -> "12."), so a correct answer to a numeric
         // question would otherwise fail this match on formatting alone, not accuracy. Also accept
         // the digit form.
         val digitForm = wordsToDigits(question.expectedAnswer) ?: return false
-        return normalizedTranscript.contains(digitForm)
+        return Regex("\\b" + Regex.escape(digitForm) + "\\b").containsMatchIn(normalizedTranscript)
     }
 
     // 0-99 only, hardcoded -- the bank never needs more than this, not a general number parser.

@@ -28,24 +28,42 @@ object ConfidenceScorer {
 
     // "like" is deliberately excluded -- ordinary filler for the target age group, not a
     // hesitation signal. Including it would penalise how a kid talks, not how sure they are.
-    private val HEDGE_WORDS = setOf("um", "uh", "erm", "hmm")
-    private val HEDGE_BIGRAMS = setOf(
-        "i think", "is it", "not sure", "kind of", "sort of", "i guess", "maybe it", "or maybe"
+    private val HEDGE_WORDS = setOf(
+        "um", "uh", "erm", "hmm", "ah", "er", "well", "maybe", "probably"
     )
-    private val RESTART_CUES = setOf("no wait", "actually", "i mean")
+    private val HEDGE_BIGRAMS = setOf(
+        "i think", "is it", "not sure", "kind of", "sort of", "i guess", "maybe it", "or maybe",
+        "could be", "might be", "not certain", "i believe"
+    )
+    private val RESTART_UNIGRAMS = setOf("actually")
+    private val RESTART_BIGRAMS = setOf("no wait", "i mean", "wait no", "or rather")
+
+    private fun normalizeToken(raw: String): String {
+        val cleaned = raw.lowercase().trim { it in ",.?!…-;:\"'() " }
+        // Collapse elongated fillers: "umm" -> "um", "uhh" -> "uh", "err" -> "er", "hmmm" -> "hmm", "ahh" -> "ah"
+        return when {
+            cleaned.matches(Regex("^u+m+$")) -> "um"
+            cleaned.matches(Regex("^u+h+$")) -> "uh"
+            cleaned.matches(Regex("^e+r+m*$")) -> "erm"
+            cleaned.matches(Regex("^h+m+$")) -> "hmm"
+            cleaned.matches(Regex("^a+h+$")) -> "ah"
+            cleaned.matches(Regex("^e+r+$")) -> "er"
+            else -> cleaned
+        }
+    }
 
     fun score(words: List<Word>): ConfidenceSignals {
         if (words.isEmpty()) return ConfidenceSignals(latencyMs = 0L, hedgeRate = 0f, selfCorrections = 0)
 
         val latencyMs = words.first().startMs
-        val tokens = words.map { it.text.lowercase().trim(',', '.', '?', '!') }
+        val tokens = words.map { normalizeToken(it.text) }.filter { it.isNotBlank() }
 
         var hedgeHits = 0
         for (i in tokens.indices) {
             if (tokens[i] in HEDGE_WORDS) hedgeHits++
             if (i + 1 < tokens.size && "${tokens[i]} ${tokens[i + 1]}" in HEDGE_BIGRAMS) hedgeHits++
         }
-        val hedgeRate = hedgeHits.toFloat() / tokens.size
+        val hedgeRate = if (tokens.isNotEmpty()) hedgeHits.toFloat() / tokens.size else 0f
 
         var selfCorrections = 0
         // adjacent repeated tokens ("the the")
@@ -65,9 +83,10 @@ object ConfidenceScorer {
                 }
             }
         }
-        // explicit restart cues
+        // explicit restart cues (both single-word like "actually" and two-word phrases like "no wait")
         for (i in tokens.indices) {
-            if (i + 1 < tokens.size && "${tokens[i]} ${tokens[i + 1]}" in RESTART_CUES) selfCorrections++
+            if (tokens[i] in RESTART_UNIGRAMS) selfCorrections++
+            if (i + 1 < tokens.size && "${tokens[i]} ${tokens[i + 1]}" in RESTART_BIGRAMS) selfCorrections++
         }
 
         return ConfidenceSignals(latencyMs, hedgeRate, selfCorrections)

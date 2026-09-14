@@ -15,7 +15,7 @@ import java.io.ByteArrayOutputStream
  * reads as maximally confident regardless of reality. Auto-arming means the clip's leading
  * silence *is* the measurement; the student taps Done only to stop.
  */
-class MicRecorder {
+class MicRecorder(private val onSilenceDetected: (() -> Unit)? = null) {
     private val sampleRate = 16000
     private var audioRecord: AudioRecord? = null
     private var recordingThread: Thread? = null
@@ -23,6 +23,14 @@ class MicRecorder {
 
     @Volatile
     private var recording = false
+
+    // Voice Activity Detection (VAD) parameters
+    private var speechDetected = false
+    private var lastSpeechTimeMs = 0L
+    private val speechRmsThreshold = 500.0 // Speech detection amplitude threshold
+    private val silenceDurationMs = 900L // 900ms of silence after speaking triggers prompt auto-stop
+    private val minSpeechDurationMs = 300L
+    private var speechStartTimeMs = 0L
 
     // Caller must have already checked RECORD_AUDIO permission before constructing/starting this
     // (see MainActivity's permission gate) -- that's the actual guard, this annotation just
@@ -42,23 +50,65 @@ class MicRecorder {
         )
         audioRecord?.startRecording()
         recording = true
+        speechDetected = false
+        lastSpeechTimeMs = 0L
+        speechStartTimeMs = 0L
+
         recordingThread = Thread {
             val chunk = ByteArray(bufSize)
             while (recording) {
                 val read = audioRecord?.read(chunk, 0, chunk.size) ?: -1
                 if (read > 0) {
                     synchronized(buffer) { buffer.write(chunk, 0, read) }
+
+                    if (onSilenceDetected != null) {
+                        val rms = calculateRms(chunk, read)
+                        val now = System.currentTimeMillis()
+                        if (rms > speechRmsThreshold) {
+                            if (!speechDetected) {
+                                speechDetected = true
+                                speechStartTimeMs = now
+                            }
+                            lastSpeechTimeMs = now
+                        } else if (speechDetected && (now - speechStartTimeMs > minSpeechDurationMs)) {
+                            if (now - lastSpeechTimeMs > silenceDurationMs) {
+                                // Silence detected after speech -- auto-stop turn!
+                                recording = false
+                                Thread {
+                                    onSilenceDetected.invoke()
+                                }.start()
+                                break
+                            }
+                        }
+                    }
                 }
             }
         }.also { it.start() }
     }
 
+    private fun calculateRms(pcm: ByteArray, len: Int): Double {
+        var sum = 0.0
+        val sampleCount = len / 2
+        for (i in 0 until len step 2) {
+            val sample = (pcm[i].toInt() and 0xFF) or (pcm[i + 1].toInt() shl 8)
+            val shortVal = sample.toShort().toDouble()
+            sum += shortVal * shortVal
+        }
+        return if (sampleCount > 0) Math.sqrt(sum / sampleCount) else 0.0
+    }
+
     fun stopAndGetPcm(): ByteArray {
         recording = false
-        recordingThread?.join(500)
+        if (recordingThread != null && Thread.currentThread() != recordingThread) {
+            try {
+                recordingThread?.join(500)
+            } catch (_: InterruptedException) {}
+        }
         recordingThread = null
-        audioRecord?.stop()
-        audioRecord?.release()
+        try {
+            audioRecord?.stop()
+            audioRecord?.release()
+        } catch (_: Exception) {}
         audioRecord = null
         return synchronized(buffer) { buffer.toByteArray() }
     }

@@ -77,5 +77,6 @@ object PromptBuilder {
             }
             append("\nStudent: ")
             append(userText)
+            append("\n\nInstruction: Reply directly in 1 to 2 concise sentences suitable for spoken conversation. Do not use markdown, bullets, or asterisks.")
         }
 }
