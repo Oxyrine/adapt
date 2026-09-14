@@ -35,7 +35,13 @@ export const GroqClient = {
           model: this.CHAT_MODEL,
           messages: [{ role: 'user', content: prompt }],
           temperature: 0.7,
-          max_tokens: 250
+          // gpt-oss-20b is a reasoning model -- it can spend part of max_tokens on hidden
+          // reasoning before writing the final answer. Hit live: a 250-token cap plus reasoning
+          // overhead returned HTTP 200 with an empty content field once replies were asked to
+          // actually explain something, not just move on. reasoning_effort "low" keeps that
+          // overhead small; the raised cap gives the real answer room either way.
+          max_tokens: 500,
+          reasoning_effort: 'low'
         }),
         signal: controller.signal
       });

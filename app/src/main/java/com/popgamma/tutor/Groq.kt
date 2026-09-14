@@ -34,7 +34,13 @@ data class ChatCompletionRequest(
     val model: String,
     val messages: List<GroqMessage>,
     val temperature: Float = 0.7f,
-    @SerialName("max_tokens") val maxTokens: Int = 250
+    // gpt-oss-20b is a reasoning model -- it can spend part of maxTokens on hidden reasoning
+    // before ever writing the final answer. Hit live: a 250-token cap plus reasoning overhead
+    // returned HTTP 200 with an empty content field once replies were asked to actually explain
+    // something (the "flagged for deeper explanation" branch), not just move on. reasoningEffort
+    // "low" keeps that overhead small; the raised cap gives the real answer room either way.
+    @SerialName("max_tokens") val maxTokens: Int = 500,
+    @SerialName("reasoning_effort") val reasoningEffort: String = "low"
 )
 
 @Serializable
