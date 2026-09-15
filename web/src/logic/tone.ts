@@ -57,10 +57,15 @@ export const PromptBuilder = {
     }
     prompt += `\nStudent: ${userText}`;
     // A flat "1 to 2 sentences" cap here used to override whatever the routing addendum above
-    // asked for -- a confident-wrong answer's "walk through the misconception directly" got
-    // squashed to the same length as a plain move-on, so every reply read identically regardless
-    // of band/correctness. Length now follows what was actually asked for instead of a fixed cap.
-    prompt += `\n\nInstruction: Reply directly, suitable for spoken conversation -- no markdown, bullets, or asterisks. Match the length to what was actually asked: a quick move-on or gentle correction is one short sentence, but when asked to explain a misconception or walk through reasoning, take three or four sentences and actually do it -- do not compress a real explanation into one line.`;
+    // asked for. Fixing that (allowing more depth on the "explain the misconception" branch)
+    // then broke a different thing live: on a TIGHT-structure profile, "explain more" got
+    // answered with unrelated travel trivia (Eiffel Tower, Notre-Dame) instead of short numbered
+    // steps -- the depth instruction and the structure rule above were fighting, and depth won.
+    // Depth now has to stay inside whatever the structure rule already said.
+    const depthWithinStructure = profile.structure === 'TIGHT'
+      ? 'Depth is never an excuse to break the TIGHT rule above -- more explanation means more short numbered steps, not tangents, trivia, or padding.'
+      : 'Depth means actually working through the reasoning, not padding with unrelated trivia either.';
+    prompt += `\n\nInstruction: Reply directly, suitable for spoken conversation -- no markdown, bullets, or asterisks. Match the length to what was actually asked: a quick move-on or gentle correction is one short sentence; when asked to explain a misconception or walk through reasoning, actually do it. ${depthWithinStructure}`;
     return prompt;
   }
 };
