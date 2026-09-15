@@ -63,13 +63,25 @@ export const PromptBuilder = {
     // A flat "1 to 2 sentences" cap here used to override whatever the routing addendum above
     // asked for. Fixing that (allowing more depth on the "explain the misconception" branch)
     // then broke a different thing live: on a TIGHT-structure profile, "explain more" got
-    // answered with unrelated travel trivia (Eiffel Tower, Notre-Dame) instead of short numbered
-    // steps -- the depth instruction and the structure rule above were fighting, and depth won.
-    // Depth now has to stay inside whatever the structure rule already said.
-    const depthWithinStructure = profile.structure === 'TIGHT'
-      ? 'Depth is never an excuse to break the TIGHT rule above -- more explanation means more short numbered steps, not tangents, trivia, or padding.'
-      : 'Depth means actually working through the reasoning, not padding with unrelated trivia either.';
-    prompt += `\n\nInstruction: Reply directly, suitable for spoken conversation -- no markdown, bullets, or asterisks. Match the length to what was actually asked: a quick move-on or gentle correction is one short sentence; when asked to explain a misconception or walk through reasoning, actually do it. ${depthWithinStructure}`;
+    // answered with unrelated travel trivia instead of short numbered steps. The blanket
+    // "not padding with unrelated trivia either" fix for that then broke LOOSE -- it directly
+    // contradicts LOOSE's own persona instruction to work a joke/fun fact/tangent into almost
+    // every reply, and live testing showed that contradiction just killing the LOOSE persona
+    // outright (the model dropped the tangent entirely rather than resolve the conflict). Each
+    // structure level needs its own compatible depth guidance, not one rule applied to all three.
+    let depthGuidance = '';
+    switch (profile.structure) {
+      case 'TIGHT':
+        depthGuidance = 'Depth is never an excuse to break the TIGHT rule above -- more explanation means more short numbered steps, not tangents, trivia, or padding.';
+        break;
+      case 'LOOSE':
+        depthGuidance = "The joke, fun fact, or tangent from the persona above still has to sit alongside a real, clear answer -- work it in, don't let it replace actually explaining.";
+        break;
+      case 'MEDIUM':
+        depthGuidance = "Depth means actually working through the reasoning -- an occasional light aside is fine, but don't let it replace the actual explanation.";
+        break;
+    }
+    prompt += `\n\nInstruction: Reply directly, suitable for spoken conversation -- no markdown, bullets, or asterisks. Match the length to what was actually asked: a quick move-on or gentle correction is one short sentence; when asked to explain a misconception or walk through reasoning, actually do it. ${depthGuidance}`;
     return prompt;
   }
 };
