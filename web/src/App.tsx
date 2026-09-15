@@ -73,6 +73,16 @@ export const App: React.FC = () => {
   const silenceTimerRef = useRef<any>(null);
   const inactivityTimerRef = useRef<any>(null);
   const isListeningRef = useRef<boolean>(false);
+  // Mirrors currentBankQuestion for the same reason isListeningRef/transcriptBufferRef exist:
+  // the SpeechRecognition handlers set up in startActiveListening are long-lived closures created
+  // once per Ask click, from the render BEFORE setCurrentBankQuestion(question) takes effect. Hit
+  // live: handleStopVoiceTurn, called from those closures, read the stale (still-null)
+  // currentBankQuestion state, hit its `if (!question) return` guard, and silently no-opped --
+  // setMicState('PROCESSING') never ran, so the UI stayed frozen on "Done Speaking" forever even
+  // though the "Silence detected" status text (a plain setState call, unaffected by the stale
+  // closure) had already updated. Reading from this ref instead of the state gives the current
+  // value regardless of which render's closure is calling it.
+  const currentBankQuestionRef = useRef<BankQuestion | null>(null);
 
   // Discover and configure system voices on mount
   useEffect(() => {
@@ -313,6 +323,7 @@ export const App: React.FC = () => {
     setBusy(false);
     setMicState('IDLE');
     setCurrentBankQuestion(null);
+    currentBankQuestionRef.current = null;
     if (ttsEnabled) {
       speakAlbert(reply);
     }
@@ -325,6 +336,7 @@ export const App: React.FC = () => {
     cleanupAudioCapture();
     setMessages(prev => [...prev, { fromAlbert: true, text: question.prompt }]);
     setCurrentBankQuestion(question);
+    currentBankQuestionRef.current = question;
     setMicState('RECORDING');
     setError(null);
     transcriptBufferRef.current = '';
@@ -524,7 +536,10 @@ export const App: React.FC = () => {
   };
 
   const handleStopVoiceTurn = async (forcedWords?: Word[]) => {
-    const question = currentBankQuestion;
+    // Read from the ref, not the currentBankQuestion state var -- this function is called from
+    // long-lived SpeechRecognition closures (see currentBankQuestionRef's declaration comment)
+    // that can hold a stale, pre-update render's value of the state.
+    const question = currentBankQuestionRef.current;
     if (!question) return;
 
     // Stop direct audio recorder if active
