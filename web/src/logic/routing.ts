@@ -6,8 +6,11 @@ export interface TurnDirective {
 }
 
 export const Routing = {
-  // Caveat 3: warmth cannot drift with confidence
-  ENCOURAGEMENT: "Acknowledge the student's effort warmly, at the same level regardless of this answer's correctness or confidence.",
+  // Caveat 3: warmth cannot drift with confidence. Hit live: "The capital of France is Paris,
+  // not Tokyo. Good job." -- warmth stayed constant, but "good job" landed right after the wrong
+  // answer with nothing telling the model WHAT it's praising, so it read as praising the wrong
+  // fact itself, not the attempt. Fixed by naming the target of the praise explicitly.
+  ENCOURAGEMENT: "Acknowledge the student's effort warmly, at the same level regardless of this answer's correctness or confidence. If the answer is wrong, phrase the praise so it clearly targets the attempt, not the answer -- never let it read like you're endorsing a wrong answer as correct.",
 
   directive(correct: boolean, band: ConfidenceBand): TurnDirective {
     let followUp = '';

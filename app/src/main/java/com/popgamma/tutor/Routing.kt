@@ -11,8 +11,15 @@ object Routing {
     // Caveat 3: this string is used for all four (correct, band) combinations. CoreTest asserts
     // it is byte-identical across all four -- warmth cannot drift with confidence because the
     // test won't allow the code to make it drift.
+    // Hit live: "The capital of France is Paris, not Tokyo. Good job." -- warmth stayed constant
+    // per Caveat 3, but "good job" landed right after the wrong answer with nothing telling the
+    // model WHAT it's praising, so it read as praising the wrong fact itself, not the attempt.
+    // Fixed by naming the target of the praise explicitly, not just requiring warmth to persist.
     private const val ENCOURAGEMENT =
-        "Acknowledge the student's effort warmly, at the same level regardless of this answer's correctness or confidence."
+        "Acknowledge the student's effort warmly, at the same level regardless of this answer's " +
+            "correctness or confidence. If the answer is wrong, phrase the praise so it clearly " +
+            "targets the attempt, not the answer -- never let it read like you're endorsing a " +
+            "wrong answer as correct."
 
     fun directive(correct: Boolean, band: ConfidenceBand): TurnDirective {
         val followUp = when {
