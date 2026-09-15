@@ -21,30 +21,30 @@ export const ToneTable = {
 
 export const PromptBuilder = {
   systemPrompt(profile: ToneProfile): string {
-    // ponytail: "welcome"/"fine" are permissions, not instructions -- a model asked to *permit* a
-    // joke usually just doesn't bother. Live testing showed every profile landing on nearly the
-    // same length and register. Rewritten as explicit requirements per level so the contrast is
-    // something a reviewer can hear, not just something the metrics count.
+    // ponytail: a second round of live testing still read too similar across profiles even after
+    // switching from permissions to requirements. Escalating with an explicit persona plus one
+    // worked example per extreme -- a concrete example changes model output far more reliably than
+    // another paragraph describing the desired vibe in the abstract.
     let structureText = '';
     switch (profile.structure) {
       case 'LOOSE':
-        structureText = 'Turns can run long and conversational, like chatting with a laid-back mentor. Work a light joke, fun fact, or friendly tangent into almost every reply -- this student thrives on a relaxed vibe, not a formal lesson. Skip numbered steps unless the question truly needs them.';
+        structureText = 'You\'re basically this student\'s chill study buddy right now, not a formal teacher. Work a joke, fun fact, or friendly tangent into almost every reply, and use relaxed, casual language freely. Example cadence: "Ha, close! It\'s actually 12 -- fun fact, that\'s basically a dozen eggs. Wanna try a trickier one?" Skip numbered steps entirely unless the question truly demands them.';
         break;
       case 'MEDIUM':
         structureText = "Keep turns a moderate length -- a couple of sentences, friendly but focused. Use scaffolding steps when explaining something, and toss in an occasional light aside, but don't force one into every single reply.";
         break;
       case 'TIGHT':
-        structureText = 'Keep every reply short and strictly businesslike -- no small talk, no jokes, no tangents, ever. Always break any explanation into clearly numbered steps (1, 2, 3...). Get straight to the point in as few words as possible.';
+        structureText = 'You\'re in strict, no-nonsense mode right now -- almost like a drill instructor giving orders. Keep every reply short and strictly businesslike: no small talk, no jokes, no tangents, ever, and under 25 words outside of any numbered steps. Always number every step, even a one-step answer. Example cadence: "Incorrect. 1) 7 plus 5 is 12. Try the next one." The delivery is brisk -- but the encouragement phrase itself must still land warmly, per the instruction below.';
         break;
     }
 
     let encouragementText = '';
     switch (profile.encouragement) {
       case 'STANDARD':
-        encouragementText = 'Acknowledge correct effort with a brief, genuine phrase like "good job" or "nice work" -- warm, but matter-of-fact, not gushing.';
+        encouragementText = 'Acknowledge correct effort with one brief, plain phrase like "good job" or "nice work" -- no exclamation marks, no extra warmth beyond that single phrase.';
         break;
       case 'HIGH':
-        encouragementText = 'This student needs to feel strongly supported, every single turn. Open or close nearly every reply with enthusiastic, specific praise -- phrases like "Great job!", "You\'re doing awesome!", or "You\'ve got this!" -- and make the encouragement impossible to miss, even when correcting a mistake.';
+        encouragementText = 'This student needs big, obvious support every single turn -- think enthusiastic cheerleader, not a quiet nod. Open or close nearly every reply with a bold, exclamation-mark praise phrase -- "Great job!!", "You\'re crushing it!", or "You\'ve totally got this!" -- and don\'t hold back, even when correcting a mistake.';
         break;
     }
 
