@@ -179,17 +179,22 @@ class CoreTest {
     }
 
     @Test
-    fun `tight structure prompt never encourages jokes or tangents`() {
+    fun `tight structure prompt bans jokes and tangents outright`() {
         val profile = ToneTable.lookup(Performance.STRUGGLING, Regularity.CONSISTENT)
         val prompt = PromptBuilder.systemPrompt(profile)
-        assertFalse(prompt.contains("Jokes and tangents are welcome"))
+        assertTrue(prompt.contains("no jokes", ignoreCase = true))
+        // "welcome"/"fine" are permissions, not instructions -- rewritten as a requirement
+        // (work a joke into ALMOST EVERY reply) after live testing showed every profile
+        // landing on the same flat register when jokes were merely permitted, not required.
+        assertFalse(prompt.contains("almost every reply", ignoreCase = true))
     }
 
     @Test
-    fun `loose structure prompt welcomes jokes and tangents`() {
+    fun `loose structure prompt requires jokes or tangents, not just permits them`() {
         val profile = ToneTable.lookup(Performance.STRONG, Regularity.CONSISTENT)
         val prompt = PromptBuilder.systemPrompt(profile)
-        assertTrue(prompt.contains("Jokes and tangents are welcome"))
+        assertTrue(prompt.contains("joke", ignoreCase = true))
+        assertTrue(prompt.contains("almost every reply", ignoreCase = true))
     }
 
     // ---- Fallback replies (chat call failed -- quota/network) still honor Caveats 2 & 3 ----

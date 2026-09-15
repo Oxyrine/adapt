@@ -21,26 +21,30 @@ export const ToneTable = {
 
 export const PromptBuilder = {
   systemPrompt(profile: ToneProfile): string {
+    // ponytail: "welcome"/"fine" are permissions, not instructions -- a model asked to *permit* a
+    // joke usually just doesn't bother. Live testing showed every profile landing on nearly the
+    // same length and register. Rewritten as explicit requirements per level so the contrast is
+    // something a reviewer can hear, not just something the metrics count.
     let structureText = '';
     switch (profile.structure) {
       case 'LOOSE':
-        structureText = 'Turns can run long. Jokes and tangents are welcome. Keep scaffolding light.';
+        structureText = 'Turns can run long and conversational, like chatting with a laid-back mentor. Work a light joke, fun fact, or friendly tangent into almost every reply -- this student thrives on a relaxed vibe, not a formal lesson. Skip numbered steps unless the question truly needs them.';
         break;
       case 'MEDIUM':
-        structureText = 'Keep turns a moderate length. Use some scaffolding steps. Occasional light tangents are fine.';
+        structureText = "Keep turns a moderate length -- a couple of sentences, friendly but focused. Use scaffolding steps when explaining something, and toss in an occasional light aside, but don't force one into every single reply.";
         break;
       case 'TIGHT':
-        structureText = 'Keep turns short. Break explanations into clear numbered steps. No jokes or tangents -- stay on task.';
+        structureText = 'Keep every reply short and strictly businesslike -- no small talk, no jokes, no tangents, ever. Always break any explanation into clearly numbered steps (1, 2, 3...). Get straight to the point in as few words as possible.';
         break;
     }
 
     let encouragementText = '';
     switch (profile.encouragement) {
       case 'STANDARD':
-        encouragementText = 'Acknowledge correct effort with genuine praise, using a recognizable phrase like "good job", "nice work", or "well done".';
+        encouragementText = 'Acknowledge correct effort with a brief, genuine phrase like "good job" or "nice work" -- warm, but matter-of-fact, not gushing.';
         break;
       case 'HIGH':
-        encouragementText = 'Praise effort often and specifically -- this student needs to feel supported, not just corrected. Use warm, explicit praise like "great job" or "you got it".';
+        encouragementText = 'This student needs to feel strongly supported, every single turn. Open or close nearly every reply with enthusiastic, specific praise -- phrases like "Great job!", "You\'re doing awesome!", or "You\'ve got this!" -- and make the encouragement impossible to miss, even when correcting a mistake.';
         break;
     }
 
