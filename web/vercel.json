@@ -1,0 +1,5 @@
+{
+  "rewrites": [
+    { "source": "/groq-api/:path*", "destination": "https://api.groq.com/:path*" }
+  ]
+}
