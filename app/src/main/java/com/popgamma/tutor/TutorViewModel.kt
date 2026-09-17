@@ -45,7 +45,11 @@ data class TutorUiState(
         }
 }
 
-class TutorViewModel(private val apiKey: String) : ViewModel() {
+class TutorViewModel(initialApiKey: String) : ViewModel() {
+    // var, not val -- a downloaded APK has no build-time local.properties key baked in, so this
+    // needs to be settable at runtime from a UI the user can actually reach after install.
+    // ApiKeyStore.save() persists it; this field is just what GroqClient calls actually use.
+    var apiKey: String = initialApiKey
     private val _state = MutableStateFlow(TutorUiState())
     val state: StateFlow<TutorUiState> = _state
 
@@ -229,6 +233,11 @@ class TutorViewModel(private val apiKey: String) : ViewModel() {
     fun toggleVoiceMode(enabled: Boolean) = _state.update { it.copy(voiceMode = enabled) }
     fun toggleOfflineMode(enabled: Boolean) = _state.update { it.copy(offlineMode = enabled) }
     fun dismissError() = _state.update { it.copy(error = null) }
+
+    fun updateApiKey(newKey: String) {
+        apiKey = newKey.trim()
+        _state.update { it.copy(error = null) }
+    }
 
     private fun conversationContext(): String {
         val recent = _state.value.messages.takeLast(6)

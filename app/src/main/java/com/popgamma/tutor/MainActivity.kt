@@ -27,12 +27,16 @@ class MainActivity : ComponentActivity() {
         }
 
         setContent {
-            val viewModel: TutorViewModel = viewModel(factory = TutorViewModelFactory(BuildConfig.GROQ_API_KEY))
+            val viewModel: TutorViewModel = viewModel(factory = TutorViewModelFactory(ApiKeyStore.get(this)))
             viewModel.voiceEngine = albertVoice
             TutorApp(
                 viewModel = viewModel,
                 micGranted = micGranted,
-                onRequestMicPermission = { requestPermission.launch(Manifest.permission.RECORD_AUDIO) }
+                onRequestMicPermission = { requestPermission.launch(Manifest.permission.RECORD_AUDIO) },
+                onSaveApiKey = { newKey ->
+                    ApiKeyStore.save(this, newKey)
+                    viewModel.updateApiKey(newKey)
+                }
             )
         }
     }

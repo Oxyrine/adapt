@@ -11,6 +11,7 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Card
@@ -38,13 +39,30 @@ enum class Screen { PROFILE, CHAT, COMPARE }
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun TutorApp(viewModel: TutorViewModel, micGranted: Boolean, onRequestMicPermission: () -> Unit) {
+fun TutorApp(
+    viewModel: TutorViewModel,
+    micGranted: Boolean,
+    onRequestMicPermission: () -> Unit,
+    onSaveApiKey: (String) -> Unit
+) {
     val state by viewModel.state.collectAsState()
     var screen by remember { mutableStateOf(Screen.PROFILE) }
     var textInput by remember { mutableStateOf("") }
+    // A downloaded APK has no build-time key baked in (see ApiKeyStore) -- this dialog is the
+    // only way anyone who just installed the app can actually make live calls work.
+    var showApiKeyDialog by remember { mutableStateOf(false) }
 
     MaterialTheme {
-        Scaffold(topBar = { TopAppBar(title = { Text("Adaptive Tutor Tone Demo") }) }) { padding ->
+        Scaffold(topBar = {
+            TopAppBar(
+                title = { Text("Adaptive Tutor Tone Demo") },
+                actions = {
+                    TextButton(onClick = { showApiKeyDialog = true }) {
+                        Text(if (viewModel.apiKey.isBlank()) "🔑 Set Key" else "🔑 Key Set")
+                    }
+                }
+            )
+        }) { padding ->
             Column(
                 Modifier
                     .padding(padding)
@@ -85,7 +103,45 @@ fun TutorApp(viewModel: TutorViewModel, micGranted: Boolean, onRequestMicPermiss
                 }
             }
         }
+
+        if (showApiKeyDialog) {
+            ApiKeyDialog(
+                currentKey = viewModel.apiKey,
+                onDismiss = { showApiKeyDialog = false },
+                onSave = { newKey ->
+                    onSaveApiKey(newKey)
+                    showApiKeyDialog = false
+                }
+            )
+        }
     }
+}
+
+@Composable
+private fun ApiKeyDialog(currentKey: String, onDismiss: () -> Unit, onSave: (String) -> Unit) {
+    var text by remember { mutableStateOf(currentKey) }
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text("Groq API Key") },
+        text = {
+            Column {
+                Text("Get a free key at console.groq.com, then paste it here. Stored only on this device.")
+                Spacer(Modifier.height(8.dp))
+                OutlinedTextField(
+                    value = text,
+                    onValueChange = { text = it },
+                    placeholder = { Text("gsk_...") },
+                    singleLine = true
+                )
+            }
+        },
+        confirmButton = {
+            TextButton(onClick = { onSave(text) }) { Text("Save") }
+        },
+        dismissButton = {
+            TextButton(onClick = onDismiss) { Text("Cancel") }
+        }
+    )
 }
 
 @Composable
