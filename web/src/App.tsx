@@ -29,7 +29,8 @@ import {
   AlertCircle,
   Volume2,
   VolumeX,
-  Mic
+  Mic,
+  Download
 } from 'lucide-react';
 import './App.css';
 
@@ -686,6 +687,19 @@ export const App: React.FC = () => {
             <Settings size={18} />
             <span className="btn-label">{apiKey ? 'API Key Set' : 'Set API Key'}</span>
           </button>
+          {/* Direct APK download -- this is the actual native Android app (the Kotlin/Compose
+              project this web version was ported from), not a repackaged copy of this site. No
+              Play Store listing, so Android will warn about installing from an unknown source --
+              that's expected for a sideloaded demo build, not a bug. */}
+          <a
+            className="btn-icon"
+            href="/adaptive-tutor-tone.apk"
+            download
+            title="Download the native Android app (.apk, ~9MB)"
+          >
+            <Download size={18} />
+            <span className="btn-label">Get Android App</span>
+          </a>
         </div>
       </header>
 
