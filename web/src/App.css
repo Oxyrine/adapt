@@ -621,6 +621,28 @@ body {
   animation: pulse 1s infinite alternate;
 }
 
+.btn-mic-main {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  width: 100%;
+  background: var(--md-sys-color-primary);
+  color: #ffffff;
+  border: none;
+  font-size: 14px;
+  font-weight: 700;
+  padding: 12px;
+  border-radius: 999px;
+  cursor: pointer;
+  margin-bottom: 10px;
+}
+
+.btn-mic-main:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
 @keyframes pulse {
   from { opacity: 0.85; }
   to { opacity: 1; }

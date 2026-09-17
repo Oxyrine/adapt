@@ -28,7 +28,8 @@ import {
   Monitor,
   AlertCircle,
   Volume2,
-  VolumeX
+  VolumeX,
+  Mic
 } from 'lucide-react';
 import './App.css';
 
@@ -45,7 +46,6 @@ export const App: React.FC = () => {
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [sessionMetrics, setSessionMetrics] = useState<SessionMetrics>(createInitialSessionMetrics());
   const [snapshots, setSnapshots] = useState<MetricsSnapshot[]>([]);
-  const [voiceMode, setVoiceMode] = useState<boolean>(false);
   const [offlineMode, setOfflineMode] = useState<boolean>(false);
   const [micState, setMicState] = useState<MicState>('IDLE');
   const [currentBankQuestion, setCurrentBankQuestion] = useState<BankQuestion | null>(null);
@@ -83,6 +83,9 @@ export const App: React.FC = () => {
   // closure) had already updated. Reading from this ref instead of the state gives the current
   // value regardless of which render's closure is calling it.
   const currentBankQuestionRef = useRef<BankQuestion | null>(null);
+  // Cycles through the question bank so one mic button can drive voice mode end to end --
+  // no picking a specific question first. Wraps back to the start once the bank is exhausted.
+  const nextQuestionIndexRef = useRef(0);
 
   // Discover and configure system voices on mount
   useEffect(() => {
@@ -355,6 +358,15 @@ export const App: React.FC = () => {
       setIsAlbertSpeaking(false);
       startActiveListening(question);
     }
+  };
+
+  // One-tap entry point for the big mic button -- no separate "enable voice mode" step and no
+  // picking a specific question first. Auto-advances through the bank each tap.
+  const handleMicButtonTap = () => {
+    if (micState !== 'IDLE' || busy) return;
+    const question = QuestionBank.questions[nextQuestionIndexRef.current % QuestionBank.questions.length];
+    nextQuestionIndexRef.current += 1;
+    handleStartVoiceTurn(question);
   };
 
   const handleSkipQuestionAndSpeak = () => {
@@ -897,15 +909,6 @@ export const App: React.FC = () => {
                   <label className="toggle-label">
                     <input
                       type="checkbox"
-                      checked={voiceMode}
-                      onChange={e => setVoiceMode(e.target.checked)}
-                    />
-                    <span>Voice Mode</span>
-                  </label>
-
-                  <label className="toggle-label">
-                    <input
-                      type="checkbox"
                       checked={offlineMode}
                       onChange={e => setOfflineMode(e.target.checked)}
                     />
@@ -913,11 +916,21 @@ export const App: React.FC = () => {
                   </label>
                 </div>
 
-                {/* Input Area */}
-                {voiceMode ? (
-                  <div className="voice-panel">
+                {/* Voice is always available now -- no separate "enable voice mode" toggle. One
+                    tap on the mic starts a turn with the next question in the bank; the list
+                    below still lets you deliberately pick a specific one when a demo needs it. */}
+                <button
+                  className="btn-mic-main"
+                  onClick={handleMicButtonTap}
+                  disabled={busy || micState !== 'IDLE'}
+                >
+                  <Mic size={18} />
+                  {micState === 'IDLE' ? 'Tap to talk to Albert' : 'Listening…'}
+                </button>
+
+                <div className="voice-panel">
                     <div className="voice-panel-header">
-                      <span>Question Bank</span>
+                      <span>Or pick a specific question</span>
                       <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
                         <button
                           onClick={() => setSpeechEngine(prev => prev === 'GROQ_AUDIO' ? 'WEB_SPEECH' : 'GROQ_AUDIO')}
@@ -1030,27 +1043,26 @@ export const App: React.FC = () => {
                         );
                       })}
                     </div>
-                  </div>
-                ) : (
-                  <div className="text-input-row">
-                    <input
-                      type="text"
-                      className="chat-input"
-                      placeholder="Type your answer..."
-                      value={textInput}
-                      onChange={e => setTextInput(e.target.value)}
-                      onKeyDown={e => e.key === 'Enter' && handleSendText()}
-                      disabled={busy}
-                    />
-                    <button
-                      className="btn-send"
-                      onClick={() => handleSendText()}
-                      disabled={!textInput.trim() || busy}
-                    >
-                      <Send size={16} />
-                    </button>
-                  </div>
-                )}
+                </div>
+
+                <div className="text-input-row">
+                  <input
+                    type="text"
+                    className="chat-input"
+                    placeholder="Or type your answer..."
+                    value={textInput}
+                    onChange={e => setTextInput(e.target.value)}
+                    onKeyDown={e => e.key === 'Enter' && handleSendText()}
+                    disabled={busy}
+                  />
+                  <button
+                    className="btn-send"
+                    onClick={() => handleSendText()}
+                    disabled={!textInput.trim() || busy}
+                  >
+                    <Send size={16} />
+                  </button>
+                </div>
               </div>
             )}
 
