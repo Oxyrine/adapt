@@ -24,6 +24,14 @@ class MicRecorder(private val onSilenceDetected: (() -> Unit)? = null) {
     @Volatile
     private var recording = false
 
+    /** True once any chunk of this recording crossed [speechRmsThreshold]. Lets the caller tell a
+     *  clip that's mostly/entirely silence apart from what it actually captured -- sending a
+     *  near-silent clip to Whisper is exactly what makes it hallucinate boilerplate ("you",
+     *  "Thank you.") instead of failing honestly. */
+    @Volatile
+    var didDetectSpeech: Boolean = false
+        private set
+
     // Voice Activity Detection (VAD) parameters
     private var speechDetected = false
     private var lastSpeechTimeMs = 0L
@@ -51,6 +59,7 @@ class MicRecorder(private val onSilenceDetected: (() -> Unit)? = null) {
         audioRecord?.startRecording()
         recording = true
         speechDetected = false
+        didDetectSpeech = false
         lastSpeechTimeMs = 0L
         speechStartTimeMs = 0L
 
@@ -65,6 +74,7 @@ class MicRecorder(private val onSilenceDetected: (() -> Unit)? = null) {
                         val rms = calculateRms(chunk, read)
                         val now = System.currentTimeMillis()
                         if (rms > speechRmsThreshold) {
+                            didDetectSpeech = true
                             if (!speechDetected) {
                                 speechDetected = true
                                 speechStartTimeMs = now

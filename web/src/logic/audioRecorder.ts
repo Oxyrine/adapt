@@ -11,6 +11,10 @@
 export interface AudioRecordingResult {
   wavBase64: string;
   durationMs: number;
+  /** True if any frame crossed the speech-energy threshold during this recording. A clip that
+   *  never does is mostly/entirely silence -- sending it to Whisper anyway is exactly what makes
+   *  it hallucinate boilerplate ("you", "Thank you.") instead of failing honestly. */
+  speechDetected: boolean;
 }
 
 export class AudioRecorder {
@@ -163,7 +167,7 @@ export class AudioRecorder {
     const durationMs = Math.round((totalLength / this.targetSampleRate) * 1000);
     const wavBase64 = this.pcmToWav(merged, this.targetSampleRate);
 
-    return { wavBase64, durationMs };
+    return { wavBase64, durationMs, speechDetected: this.speechDetected };
   }
 
   private pcmToWav(pcmData: Float32Array, sampleRate: number): string {

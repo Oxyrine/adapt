@@ -10,7 +10,7 @@ export const Routing = {
   // not Tokyo. Good job." -- warmth stayed constant, but "good job" landed right after the wrong
   // answer with nothing telling the model WHAT it's praising, so it read as praising the wrong
   // fact itself, not the attempt. Fixed by naming the target of the praise explicitly.
-  ENCOURAGEMENT: "Acknowledge the student's effort warmly, at the same level regardless of this answer's correctness or confidence. If the answer is wrong, phrase the praise so it clearly targets the attempt, not the answer -- never let it read like you're endorsing a wrong answer as correct.",
+  ENCOURAGEMENT: "Acknowledge the student's effort warmly, at the same level regardless of this answer's correctness or confidence. If the answer is wrong, state the correction first and put the encouragement after it, phrased so it clearly targets the attempt, not the answer -- never open a wrong-answer reply with the praise phrase, and never let it read like you're endorsing a wrong answer as correct.",
 
   directive(correct: boolean, band: ConfidenceBand): TurnDirective {
     let followUp = '';

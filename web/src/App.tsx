@@ -34,6 +34,16 @@ import {
 } from 'lucide-react';
 import './App.css';
 
+// Whisper hallucinates boilerplate outro phrases on short/quiet clips with little real signal --
+// it was trained on huge amounts of video data and falls back on things like this when it has
+// nothing real to transcribe. None of these are plausible answers to any question in
+// QuestionBank. Mirrors the same list in the native app's TutorViewModel.kt.
+const HALLUCINATED_PHRASES = new Set([
+  'you', 'thank you', 'thanks for watching', 'thank you for watching', 'thanks',
+  'please subscribe', 'subscribe to my channel', 'bye', 'bye bye', 'see you next time',
+  'okay', 'yeah'
+]);
+
 export const App: React.FC = () => {
   // Navigation & Settings
   const [screen, setScreen] = useState<Screen>('PROFILE');
@@ -569,26 +579,35 @@ export const App: React.FC = () => {
 
     // If Direct Groq Audio recorded audio and we don't have a transcript yet:
     if (directResult && directResult.wavBase64 && !transcriptBufferRef.current.trim()) {
-      setVadStatus('Transcribing speech with Groq...');
-      let transcribed = '';
-      if (apiKey.trim() && !offlineMode) {
-        const tr = await GroqClient.transcribeAudio(apiKey, directResult.wavBase64);
-        if (tr.success && tr.value) {
-          transcribed = tr.value;
+      // A clip that never crossed the speech-energy threshold is mostly/entirely silence --
+      // sending it to Whisper anyway is exactly what makes it hallucinate boilerplate ("you",
+      // "Thank you.") instead of failing honestly. Skip the call; falls through to the empty-
+      // transcript handling below same as any other failed transcription.
+      if (directResult.speechDetected) {
+        setVadStatus('Transcribing speech with Groq...');
+        let transcribed = '';
+        if (apiKey.trim() && !offlineMode) {
+          const tr = await GroqClient.transcribeAudio(apiKey, directResult.wavBase64);
+          if (tr.success && tr.value) {
+            transcribed = tr.value;
+          }
         }
-      }
-      if (transcribed.trim()) {
-        transcriptBufferRef.current = transcribed;
-        setLiveTranscript(transcribed);
+        if (transcribed.trim()) {
+          transcriptBufferRef.current = transcribed;
+          setLiveTranscript(transcribed);
+        }
       }
     }
 
-    // A live transcript that's pure punctuation/noise ("." from misheard silence) has no real
-    // content to score or reply to -- without this guard it still reaches the scorer (whose
-    // signals all read as zero, i.e. falsely "confident") and the LLM, which then improvises a
-    // reply disconnected from what was actually asked. Only applies to the live-transcription
-    // branch below; offline/fixture words always have real content.
-    const liveTranscriptHasContent = /[a-z0-9]/i.test(transcriptBufferRef.current);
+    // A live transcript that's pure punctuation/noise ("." from misheard silence) or a known
+    // Whisper hallucination has no real content to score or reply to -- without this guard it
+    // still reaches the scorer (whose signals all read as zero, i.e. falsely "confident") and the
+    // LLM, which then improvises a reply disconnected from what was actually asked. Only applies
+    // to the live-transcription branch below; offline/fixture words always have real content.
+    const rawLiveTranscript = transcriptBufferRef.current.trim();
+    const normalizedLiveTranscript = rawLiveTranscript.toLowerCase().replace(/^[,.?!…\-;:"'()]+|[,.?!…\-;:"'()]+$/g, '');
+    const liveTranscriptHasContent =
+      /[a-z0-9]/i.test(rawLiveTranscript) && !HALLUCINATED_PHRASES.has(normalizedLiveTranscript);
 
     if (!offlineMode && transcriptBufferRef.current.trim() !== '' && !liveTranscriptHasContent) {
       setError("Didn't catch an actual answer -- try again.");

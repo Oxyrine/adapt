@@ -72,10 +72,13 @@ object PromptBuilder {
                     "phrase."
             EncouragementLevel.HIGH ->
                 "This student needs big, obvious support every single turn -- think enthusiastic " +
-                    "cheerleader, not a quiet nod. Open or close nearly every reply with a bold, " +
+                    "cheerleader, not a quiet nod. Close nearly every reply with a bold, " +
                     "exclamation-mark praise phrase -- \"Great job!!\", \"You're crushing it!\", or " +
                     "\"You've totally got this!\" -- and don't hold back, even when correcting a " +
-                    "mistake."
+                    "mistake. If the answer was wrong, give the correction first and put the " +
+                    "praise phrase after it, aimed at the effort -- never open a wrong-answer " +
+                    "reply with the praise phrase, since that reads as endorsing the wrong answer " +
+                    "itself."
         }
         return """
             You are Prof. Albert, a tutor. $structureText $encouragementText

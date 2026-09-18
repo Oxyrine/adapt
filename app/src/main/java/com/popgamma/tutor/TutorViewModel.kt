@@ -133,18 +133,29 @@ class TutorViewModel(initialApiKey: String) : ViewModel() {
     fun stopVoiceTurnAndScore() {
         val question = _state.value.currentBankQuestion ?: return
         val pcm = recorder?.stopAndGetPcm()
+        val hadDetectedSpeech = recorder?.didDetectSpeech ?: false
         recorder = null
         // Clear any stale error from an earlier failed attempt -- otherwise a leftover "timeout"
         // banner can sit on screen indefinitely even after this turn succeeds.
         _state.update { it.copy(micState = MicState.PROCESSING, busy = true, error = null) }
         viewModelScope.launch {
             try {
+                // If the mic never picked up anything loud enough to register as speech, don't
+                // even send the clip to Whisper -- a near-silent clip is exactly what makes it
+                // hallucinate boilerplate ("you", "Thank you.") instead of failing honestly, and
+                // no phrase blocklist can keep up with every phrase it might invent. Skipped when
+                // offline (there's no live mic clip to judge) or the sample toggle is on.
+                val skipTranscription = !_state.value.offlineMode && pcm != null && pcm.isNotEmpty() && !hadDetectedSpeech
+                if (skipTranscription) {
+                    _state.update { it.copy(error = "Didn't catch an actual answer -- try again.") }
+                    return@launch
+                }
                 val words = resolveWords(question, pcm)
                 // A transcript that's pure punctuation/noise (misheard silence coming back as ".")
-                // or a Whisper hallucination ("Thank you.") has no real content to score or reply
-                // to. Without this guard it still reaches the scorer (whose signals all read as
-                // zero, i.e. falsely "confident") and the LLM, which then improvises a reply
-                // disconnected from what was actually asked.
+                // or a Whisper hallucination that slipped past the speech-detection gate above has
+                // no real content to score or reply to. Without this guard it still reaches the
+                // scorer (whose signals all read as zero, i.e. falsely "confident") and the LLM,
+                // which then improvises a reply disconnected from what was actually asked.
                 if (!looksLikeRealAnswer(words)) {
                     _state.update { it.copy(error = "Didn't catch an actual answer -- try again.") }
                     return@launch
@@ -273,8 +284,9 @@ class TutorViewModel(initialApiKey: String) : ViewModel() {
         // question in QuestionBank, so treating them as "no answer" rather than a real transcript
         // is safe for this demo.
         private val HALLUCINATED_PHRASES = setOf(
-            "thank you", "thanks for watching", "thank you for watching",
-            "please subscribe", "subscribe to my channel", "bye", "bye bye", "see you next time"
+            "you", "thank you", "thanks for watching", "thank you for watching", "thanks",
+            "please subscribe", "subscribe to my channel", "bye", "bye bye", "see you next time",
+            "okay", "yeah"
         )
 
         /** True only for a transcript worth scoring -- not empty/punctuation-only (see the
