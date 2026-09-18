@@ -14,10 +14,12 @@ import androidx.lifecycle.viewmodel.compose.viewModel
 
 class MainActivity : ComponentActivity() {
     private var albertVoice: AlbertVoice? = null
+    private var speechRecognizer: AndroidSpeechRecognizer? = null
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         albertVoice = AlbertVoice(this)
+        speechRecognizer = AndroidSpeechRecognizer(this)
 
         var micGranted by mutableStateOf(
             ContextCompat.checkSelfPermission(this, Manifest.permission.RECORD_AUDIO) == PackageManager.PERMISSION_GRANTED
@@ -29,6 +31,7 @@ class MainActivity : ComponentActivity() {
         setContent {
             val viewModel: TutorViewModel = viewModel(factory = TutorViewModelFactory(ApiKeyStore.get(this)))
             viewModel.voiceEngine = albertVoice
+            viewModel.speechRecognizer = speechRecognizer
             TutorApp(
                 viewModel = viewModel,
                 micGranted = micGranted,
@@ -45,5 +48,7 @@ class MainActivity : ComponentActivity() {
         super.onDestroy()
         albertVoice?.shutdown()
         albertVoice = null
+        speechRecognizer?.stop()
+        speechRecognizer = null
     }
 }

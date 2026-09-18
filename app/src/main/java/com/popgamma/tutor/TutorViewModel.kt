@@ -56,6 +56,12 @@ class TutorViewModel(initialApiKey: String) : ViewModel() {
 
     private var recorder: MicRecorder? = null
     var voiceEngine: AlbertVoice? = null
+    var speechRecognizer: AndroidSpeechRecognizer? = null
+
+    // Which capture path the current turn is using -- set in armMic(), read by
+    // stopVoiceTurnAndScore() so the "Done" button drives whichever one is actually running.
+    private var usingNativeRecognition = false
+    private var recordingStartTimeMs = 0L
 
     fun selectProfile(performance: Performance, regularity: Regularity) {
         _state.update {
@@ -122,15 +128,47 @@ class TutorViewModel(initialApiKey: String) : ViewModel() {
                 // Finding 3 depends on.
                 viewModelScope.launch {
                     delay(MIC_ARM_DELAY_MS)
-                    recorder = MicRecorder(onSilenceDetected = { stopVoiceTurnAndScore() }).also { it.start() }
+                    armMic()
                 }
             }
         } else {
+            armMic()
+        }
+    }
+
+    /** Prefers Android's own SpeechRecognizer (the live engine behind Chrome's Web Speech API on
+     *  this platform, and the reason answers transcribe far better there than through a raw-audio
+     *  upload to Whisper). Falls back to the raw-audio MicRecorder + Groq Whisper path only when
+     *  the device genuinely has no speech recognition service available. */
+    private fun armMic() {
+        val recognizer = speechRecognizer
+        if (recognizer != null && recognizer.isAvailable()) {
+            usingNativeRecognition = true
+            recordingStartTimeMs = System.currentTimeMillis()
+            recognizer.start(
+                onFinalResult = { transcript -> onNativeSpeechResult(transcript) },
+                onError = {
+                    // A real engine failure for this turn only -- fall back to raw-audio capture
+                    // rather than leaving the student stuck with an armed mic that never responds.
+                    usingNativeRecognition = false
+                    recorder = MicRecorder(onSilenceDetected = { stopVoiceTurnAndScore() }).also { it.start() }
+                }
+            )
+        } else {
+            usingNativeRecognition = false
             recorder = MicRecorder(onSilenceDetected = { stopVoiceTurnAndScore() }).also { it.start() }
         }
     }
 
+    /** Bound to the "Done" button. Dispatches to whichever capture path [armMic] actually started. */
     fun stopVoiceTurnAndScore() {
+        if (usingNativeRecognition) {
+            // Asks the recognizer to finish with whatever it heard so far; onNativeSpeechResult
+            // carries the turn the rest of the way through, asynchronously, same as if the
+            // recognizer had reached natural silence on its own.
+            speechRecognizer?.stop()
+            return
+        }
         val question = _state.value.currentBankQuestion ?: return
         val pcm = recorder?.stopAndGetPcm()
         val hadDetectedSpeech = recorder?.didDetectSpeech ?: false
@@ -151,16 +189,7 @@ class TutorViewModel(initialApiKey: String) : ViewModel() {
                     return@launch
                 }
                 val words = resolveWords(question, pcm)
-                // A transcript that's pure punctuation/noise (misheard silence coming back as ".")
-                // or a Whisper hallucination that slipped past the speech-detection gate above has
-                // no real content to score or reply to. Without this guard it still reaches the
-                // scorer (whose signals all read as zero, i.e. falsely "confident") and the LLM,
-                // which then improvises a reply disconnected from what was actually asked.
-                if (!looksLikeRealAnswer(words)) {
-                    _state.update { it.copy(error = "Didn't catch an actual answer -- try again.") }
-                    return@launch
-                }
-                scoreAndRespond(question, words)
+                completeVoiceTurn(question, words)
             } catch (e: Exception) {
                 val profile = _state.value.toneProfile
                 if (profile != null) {
@@ -171,6 +200,60 @@ class TutorViewModel(initialApiKey: String) : ViewModel() {
                 _state.update { it.copy(busy = false, micState = MicState.IDLE, currentBankQuestion = null) }
             }
         }
+    }
+
+    /** Callback from [AndroidSpeechRecognizer] -- fires once it decides the student is done
+     *  speaking (naturally, or because [stopVoiceTurnAndScore] asked it to finish early). */
+    private fun onNativeSpeechResult(transcript: String) {
+        val question = _state.value.currentBankQuestion ?: return
+        usingNativeRecognition = false
+        _state.update { it.copy(micState = MicState.PROCESSING, busy = true, error = null) }
+        viewModelScope.launch {
+            try {
+                // No word-level timestamps from this API (see AndroidSpeechRecognizer's kdoc) --
+                // synthesize per-word timing from total elapsed time, identical to the web app's
+                // own Web Speech path (App.tsx's live-transcription branch).
+                val elapsedMs = (System.currentTimeMillis() - recordingStartTimeMs).coerceAtLeast(300L)
+                val words = if (_state.value.offlineMode || transcript.isBlank()) {
+                    offlineFixtureFor(question)
+                } else {
+                    wordsFromTranscript(transcript, elapsedMs)
+                }
+                completeVoiceTurn(question, words)
+            } catch (e: Exception) {
+                val profile = _state.value.toneProfile
+                if (profile != null) {
+                    _state.update { it.copy(error = "${e.message ?: "Voice processing error"} -- showing an offline reply") }
+                    applyReply(FallbackReplies.reply(profile))
+                }
+            } finally {
+                _state.update { it.copy(busy = false, micState = MicState.IDLE, currentBankQuestion = null) }
+            }
+        }
+    }
+
+    private fun wordsFromTranscript(transcript: String, elapsedMs: Long): List<Word> {
+        val tokens = transcript.trim().split(Regex("\\s+")).filter { it.isNotBlank() }
+        if (tokens.isEmpty()) return emptyList()
+        val wordDuration = (elapsedMs / tokens.size.coerceAtLeast(1)).coerceIn(150L, 600L)
+        val latencyMs = (elapsedMs - tokens.size * wordDuration).coerceAtLeast(200L)
+        return tokens.mapIndexed { idx, tok ->
+            Word(tok, latencyMs + idx * wordDuration, latencyMs + (idx + 1) * wordDuration)
+        }
+    }
+
+    /** Shared tail of both capture paths: the punctuation/hallucination guard, then scoring. */
+    private suspend fun completeVoiceTurn(question: BankQuestion, words: List<Word>) {
+        // A transcript that's pure punctuation/noise (misheard silence coming back as ".") or a
+        // hallucination that slipped past the speech-detection gate has no real content to score
+        // or reply to. Without this guard it still reaches the scorer (whose signals all read as
+        // zero, i.e. falsely "confident") and the LLM, which then improvises a reply disconnected
+        // from what was actually asked.
+        if (!looksLikeRealAnswer(words)) {
+            _state.update { it.copy(error = "Didn't catch an actual answer -- try again.") }
+            return
+        }
+        scoreAndRespond(question, words)
     }
 
     private suspend fun resolveWords(question: BankQuestion, pcm: ByteArray?): List<Word> {
