@@ -399,7 +399,7 @@ export const App: React.FC = () => {
           setVadStatus('🎙️ Speech detected... listening!');
         },
         onSilenceDetected: () => {
-          setVadStatus('Silence detected — transcribing via Groq...');
+          setVadStatus('Silence detected, transcribing via Groq...');
           handleStopVoiceTurn();
         }
       });
@@ -441,7 +441,7 @@ export const App: React.FC = () => {
 
       recognition.onstart = () => {
         isListeningRef.current = true;
-        setVadStatus('🎙️ Microphone active — say your answer!');
+        setVadStatus('🎙️ Microphone active, say your answer!');
       };
 
       recognition.onspeechstart = () => {
@@ -477,7 +477,7 @@ export const App: React.FC = () => {
           }
           silenceTimerRef.current = setTimeout(() => {
             if (isListeningRef.current && transcriptBufferRef.current.trim().length > 0) {
-              setVadStatus('Silence detected — submitting answer!');
+              setVadStatus('Silence detected, submitting answer!');
               handleStopVoiceTurn();
             }
           }, vadSilenceDelayMs);
@@ -488,7 +488,7 @@ export const App: React.FC = () => {
         setIsSpeaking(false);
         // Browser's internal acoustic endpoint fired!
         if (isListeningRef.current && transcriptBufferRef.current.trim().length > 0) {
-          setVadStatus('Silence detected — submitting answer...');
+          setVadStatus('Silence detected, submitting answer...');
           if (silenceTimerRef.current) clearTimeout(silenceTimerRef.current);
           silenceTimerRef.current = setTimeout(() => {
             if (isListeningRef.current) {
@@ -502,8 +502,8 @@ export const App: React.FC = () => {
         console.warn('SpeechRecognition error:', event.error);
         if (event.error === 'network') {
           // Automatic seamless failover to Direct Groq Audio!
-          console.warn('Browser Speech API network blocked — switching to Direct Groq Audio');
-          setVadStatus('Browser speech service blocked by network/browser — switched to Direct Groq Audio!');
+          console.warn('Browser Speech API network blocked, switching to Direct Groq Audio');
+          setVadStatus('Browser speech service blocked by network/browser, switched to Direct Groq Audio!');
           setSpeechEngine('GROQ_AUDIO');
           startDirectAudioRecording(question);
           return;
@@ -1131,7 +1131,7 @@ export const App: React.FC = () => {
                     </li>
                     <li>
                       <strong>Encouragement Parity:</strong> Praise markers remain flat or increase for struggling
-                      students—never decreasing despite the tighter discipline!
+                      students, never decreasing despite the tighter discipline!
                     </li>
                   </ul>
                 </div>
