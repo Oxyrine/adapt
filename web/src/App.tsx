@@ -583,6 +583,22 @@ export const App: React.FC = () => {
       }
     }
 
+    // A live transcript that's pure punctuation/noise ("." from misheard silence) has no real
+    // content to score or reply to -- without this guard it still reaches the scorer (whose
+    // signals all read as zero, i.e. falsely "confident") and the LLM, which then improvises a
+    // reply disconnected from what was actually asked. Only applies to the live-transcription
+    // branch below; offline/fixture words always have real content.
+    const liveTranscriptHasContent = /[a-z0-9]/i.test(transcriptBufferRef.current);
+
+    if (!offlineMode && transcriptBufferRef.current.trim() !== '' && !liveTranscriptHasContent) {
+      setError("Didn't catch an actual answer -- try again.");
+      setBusy(false);
+      setMicState('IDLE');
+      setCurrentBankQuestion(null);
+      currentBankQuestionRef.current = null;
+      return;
+    }
+
     let words: Word[];
     if (offlineMode || transcriptBufferRef.current.trim() === '') {
       words = question.expectedAnswer === 'twelve'

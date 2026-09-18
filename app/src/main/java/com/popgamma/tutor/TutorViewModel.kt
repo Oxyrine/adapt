@@ -130,6 +130,15 @@ class TutorViewModel(initialApiKey: String) : ViewModel() {
         viewModelScope.launch {
             try {
                 val words = resolveWords(question, pcm)
+                // A transcript that's pure punctuation/noise (misheard silence coming back as ".")
+                // has no real content to score or reply to. Without this guard it still reaches the
+                // scorer (whose signals all read as zero, i.e. falsely "confident") and the LLM,
+                // which then improvises a reply disconnected from what was actually asked.
+                val hasRealContent = words.any { w -> w.text.any { c -> c.isLetterOrDigit() } }
+                if (!hasRealContent) {
+                    _state.update { it.copy(error = "Didn't catch an actual answer -- try again.") }
+                    return@launch
+                }
                 scoreAndRespond(question, words)
             } catch (e: Exception) {
                 val profile = _state.value.toneProfile
