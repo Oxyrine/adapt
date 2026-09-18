@@ -104,7 +104,7 @@ body {
   border-radius: 8px;
   font-size: 13px;
   cursor: pointer;
-  transition: all 0.15s ease;
+  transition: background 0.15s ease, color 0.15s ease, transform 0.1s ease-out;
   text-decoration: none; /* this class is also used on the APK download <a> */
 }
 
@@ -113,10 +113,21 @@ body {
   color: #ffffff;
 }
 
+.btn-icon:active {
+  transform: scale(0.96);
+}
+
 .btn-icon.active {
   background: var(--md-sys-color-primary);
   border-color: var(--md-sys-color-primary);
   color: #fff;
+}
+
+/* Translucent material -- lets the device wrapper read through instead of a flat opaque bar */
+.top-nav {
+  background: rgba(24, 27, 38, 0.75);
+  backdrop-filter: blur(20px) saturate(160%);
+  -webkit-backdrop-filter: blur(20px) saturate(160%);
 }
 
 /* Viewport & Device Wrappers */
@@ -242,6 +253,12 @@ body {
   display: flex;
   flex-direction: column;
   padding: 16px;
+  animation: screenEnter 0.25s ease-out;
+}
+
+@keyframes screenEnter {
+  from { opacity: 0; transform: translateY(6px); }
+  to { opacity: 1; transform: translateY(0); }
 }
 
 /* PROFILE SCREEN */
@@ -249,6 +266,7 @@ body {
   font-size: 20px;
   color: #1e1b26;
   margin-bottom: 6px;
+  letter-spacing: -0.01em;
 }
 
 .subtitle {
@@ -269,13 +287,17 @@ body {
   border-radius: 14px;
   padding: 14px;
   cursor: pointer;
-  transition: all 0.2s ease;
+  transition: background 0.2s ease, border-color 0.2s ease, transform 0.15s ease-out;
 }
 
 .profile-card:hover {
   background: #f1f5f9;
   border-color: var(--md-sys-color-primary);
   transform: translateY(-1px);
+}
+
+.profile-card:active {
+  transform: scale(0.98);
 }
 
 .profile-card-top {
@@ -311,6 +333,10 @@ body {
 
 .btn-secondary:hover {
   background: #e2e8f0;
+}
+
+.btn-secondary:active {
+  transform: scale(0.98);
 }
 
 .full-width {
@@ -467,6 +493,12 @@ body {
   border-radius: 16px;
   font-size: 13px;
   line-height: 1.45;
+  animation: bubbleIn 0.25s cubic-bezier(0.2, 0.8, 0.2, 1);
+}
+
+@keyframes bubbleIn {
+  from { opacity: 0; transform: translateY(8px) scale(0.98); }
+  to { opacity: 1; transform: translateY(0) scale(1); }
 }
 
 .message-sender {
@@ -602,6 +634,24 @@ body {
   padding: 4px 12px;
   border-radius: 6px;
   cursor: pointer;
+}
+
+.btn-ask,
+.btn-mic-main,
+.btn-send,
+.btn-primary,
+.snapshot-btn-small,
+.fixture-btn {
+  transition: transform 0.1s ease-out, opacity 0.15s ease, background 0.15s ease;
+}
+
+.btn-ask:active,
+.btn-mic-main:active,
+.btn-send:active,
+.btn-primary:active,
+.snapshot-btn-small:active,
+.fixture-btn:active {
+  transform: scale(0.96);
 }
 
 .btn-ask:disabled {
@@ -795,12 +845,15 @@ body {
 .modal-overlay {
   position: fixed;
   inset: 0;
-  background: rgba(0, 0, 0, 0.65);
+  background: rgba(0, 0, 0, 0.5);
+  backdrop-filter: blur(4px);
+  -webkit-backdrop-filter: blur(4px);
   display: flex;
   align-items: center;
   justify-content: center;
   z-index: 100;
   padding: 16px;
+  animation: overlayIn 0.2s ease-out;
 }
 
 .modal-card {
@@ -811,6 +864,17 @@ body {
   max-width: 440px;
   padding: 20px;
   box-shadow: 0 20px 40px rgba(0, 0, 0, 0.3);
+  animation: modalIn 0.25s cubic-bezier(0.2, 0.8, 0.2, 1);
+}
+
+@keyframes overlayIn {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+@keyframes modalIn {
+  from { opacity: 0; transform: scale(0.95) translateY(6px); }
+  to { opacity: 1; transform: scale(1) translateY(0); }
 }
 
 .modal-header {
@@ -947,4 +1011,35 @@ body {
   border-radius: 4px;
   margin-bottom: 6px;
   word-break: break-word;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .screen-content,
+  .message-bubble,
+  .modal-overlay,
+  .modal-card {
+    animation: none !important;
+  }
+  .btn-icon,
+  .profile-card,
+  .btn-ask,
+  .btn-mic-main,
+  .btn-send,
+  .btn-primary,
+  .btn-secondary,
+  .snapshot-btn-small,
+  .fixture-btn {
+    transition: none !important;
+  }
+  .btn-icon:active,
+  .profile-card:active,
+  .btn-ask:active,
+  .btn-mic-main:active,
+  .btn-send:active,
+  .btn-primary:active,
+  .btn-secondary:active,
+  .snapshot-btn-small:active,
+  .fixture-btn:active {
+    transform: none !important;
+  }
 }
