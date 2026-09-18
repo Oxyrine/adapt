@@ -3,6 +3,7 @@ package com.popgamma.tutor
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.viewModelScope
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.update
@@ -113,7 +114,16 @@ class TutorViewModel(initialApiKey: String) : ViewModel() {
         val voice = voiceEngine
         if (voice != null) {
             voice.speak(question.prompt, _state.value.toneProfile) {
-                recorder = MicRecorder(onSilenceDetected = { stopVoiceTurnAndScore() }).also { it.start() }
+                // Android's TTS onDone can fire slightly before the speaker actually finishes
+                // playing, and the mic has no echo cancellation (plain MIC source, not
+                // VOICE_COMMUNICATION). A short buffer keeps Albert's own voice tail from bleeding
+                // into the start of the recording -- small enough (well under the 1500ms latency
+                // threshold in Confidence.kt) that it doesn't skew the confidence measurement
+                // Finding 3 depends on.
+                viewModelScope.launch {
+                    delay(MIC_ARM_DELAY_MS)
+                    recorder = MicRecorder(onSilenceDetected = { stopVoiceTurnAndScore() }).also { it.start() }
+                }
             }
         } else {
             recorder = MicRecorder(onSilenceDetected = { stopVoiceTurnAndScore() }).also { it.start() }
@@ -131,11 +141,11 @@ class TutorViewModel(initialApiKey: String) : ViewModel() {
             try {
                 val words = resolveWords(question, pcm)
                 // A transcript that's pure punctuation/noise (misheard silence coming back as ".")
-                // has no real content to score or reply to. Without this guard it still reaches the
-                // scorer (whose signals all read as zero, i.e. falsely "confident") and the LLM,
-                // which then improvises a reply disconnected from what was actually asked.
-                val hasRealContent = words.any { w -> w.text.any { c -> c.isLetterOrDigit() } }
-                if (!hasRealContent) {
+                // or a Whisper hallucination ("Thank you.") has no real content to score or reply
+                // to. Without this guard it still reaches the scorer (whose signals all read as
+                // zero, i.e. falsely "confident") and the LLM, which then improvises a reply
+                // disconnected from what was actually asked.
+                if (!looksLikeRealAnswer(words)) {
                     _state.update { it.copy(error = "Didn't catch an actual answer -- try again.") }
                     return@launch
                 }
@@ -252,6 +262,30 @@ class TutorViewModel(initialApiKey: String) : ViewModel() {
         val recent = _state.value.messages.takeLast(6)
         if (recent.isEmpty()) return ""
         return recent.joinToString("\n") { (if (it.fromAlbert) "Albert: " else "Student: ") + it.text }
+    }
+
+    companion object {
+        private const val MIC_ARM_DELAY_MS = 250L
+
+        // Whisper hallucinates boilerplate outro phrases on short/quiet clips with little real
+        // signal -- it was trained on huge amounts of video data and falls back on things like
+        // this when it has nothing real to transcribe. None of these are plausible answers to any
+        // question in QuestionBank, so treating them as "no answer" rather than a real transcript
+        // is safe for this demo.
+        private val HALLUCINATED_PHRASES = setOf(
+            "thank you", "thanks for watching", "thank you for watching",
+            "please subscribe", "subscribe to my channel", "bye", "bye bye", "see you next time"
+        )
+
+        /** True only for a transcript worth scoring -- not empty/punctuation-only (see the
+         *  earlier "." bug) and not a known Whisper hallucination. */
+        fun looksLikeRealAnswer(words: List<Word>): Boolean {
+            if (!words.any { w -> w.text.any { c -> c.isLetterOrDigit() } }) return false
+            val transcript = words.joinToString(" ") { it.text }
+                .lowercase()
+                .trim { it in ",.?!… " }
+            return transcript !in HALLUCINATED_PHRASES
+        }
     }
 }
 
