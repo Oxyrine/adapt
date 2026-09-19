@@ -173,9 +173,22 @@ class CoreTest {
     @Test
     fun `prompt addendum for confident wrong appears verbatim in the built prompt`() {
         val profile = ToneTable.lookup(Performance.STRUGGLING, Regularity.GAPPED)
-        val addendum = Routing.promptAddendum(correct = false, band = ConfidenceBand.HIGH)
+        val addendum = Routing.promptAddendum(correct = false, band = ConfidenceBand.HIGH, expectedAnswer = "twelve")
         val prompt = PromptBuilder.buildPrompt(profile, addendum, history = "", userText = "it's eleven")
         assertTrue(prompt.contains(addendum))
+    }
+
+    @Test
+    fun `prompt addendum states ground truth explicitly instead of leaving the model to judge it`() {
+        // Hit live: without this, a small/low-reasoning-effort model would sometimes say
+        // "correct, good job" to a wrong arithmetic answer, or skip the misconception explanation
+        // for a TIGHT-structure profile because it hadn't independently noticed anything was wrong.
+        val wrong = Routing.promptAddendum(correct = false, band = ConfidenceBand.HIGH, expectedAnswer = "twenty seven")
+        assertTrue(wrong.contains("incorrect", ignoreCase = true))
+        assertTrue(wrong.contains("twenty seven"))
+
+        val right = Routing.promptAddendum(correct = true, band = ConfidenceBand.HIGH, expectedAnswer = "twenty seven")
+        assertFalse(right.contains("incorrect", ignoreCase = true))
     }
 
     @Test

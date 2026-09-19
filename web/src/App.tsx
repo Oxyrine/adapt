@@ -663,7 +663,7 @@ export const App: React.FC = () => {
     setMessages(prev => [...prev, { fromAlbert: false, text: transcript }]);
     setLastConfidenceReadout(readout);
 
-    const addendum = Routing.promptAddendum(correct, band);
+    const addendum = Routing.promptAddendum(correct, band, question.expectedAnswer);
     const prompt = PromptBuilder.buildPrompt(profile, addendum, conversationContext(), transcript);
 
     if (offlineMode || !apiKey.trim()) {

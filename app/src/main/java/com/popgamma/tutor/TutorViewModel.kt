@@ -332,7 +332,7 @@ class TutorViewModel(initialApiKey: String) : ViewModel() {
             )
         }
 
-        val addendum = Routing.promptAddendum(correct, band)
+        val addendum = Routing.promptAddendum(correct, band, question.expectedAnswer)
         val prompt = PromptBuilder.buildPrompt(profile, addendum, conversationContext(), transcript)
         when (val result = GroqClient.chat(apiKey, prompt)) {
             is GroqResult.Success -> applyReply(result.value)

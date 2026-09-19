@@ -30,8 +30,18 @@ export const Routing = {
     };
   },
 
-  promptAddendum(correct: boolean, band: ConfidenceBand): string {
+  // expectedAnswer is stated as ground truth up front, not left for the model to re-derive from
+  // the transcript. QuestionBank.isCorrect() already computed `correct` deterministically; leaving
+  // the model to independently judge correctness for its own reply is exactly what let it say
+  // "correct, good job" to a wrong arithmetic answer in testing, and skip the misconception
+  // explanation entirely for a TIGHT-structure profile because it didn't think anything was wrong
+  // to begin with. A small, low-reasoning-effort model is not a reliable arithmetic checker and
+  // shouldn't need to be one here -- the fact is already known.
+  promptAddendum(correct: boolean, band: ConfidenceBand, expectedAnswer: string): string {
+    const truth = correct
+      ? "Fact: the student's answer is correct."
+      : `Fact: the student's answer is incorrect. The correct answer is "${expectedAnswer}". State plainly that it's incorrect -- never imply the student was right.`;
     const d = this.directive(correct, band);
-    return `${d.encouragement} ${d.followUp}`;
+    return `${truth} ${d.encouragement} ${d.followUp}`;
   }
 };
