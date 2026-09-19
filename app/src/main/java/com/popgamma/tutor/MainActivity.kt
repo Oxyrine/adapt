@@ -48,7 +48,7 @@ class MainActivity : ComponentActivity() {
         super.onDestroy()
         albertVoice?.shutdown()
         albertVoice = null
-        speechRecognizer?.stop()
+        speechRecognizer?.release()
         speechRecognizer = null
     }
 }

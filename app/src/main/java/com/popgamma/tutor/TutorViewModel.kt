@@ -166,7 +166,7 @@ class TutorViewModel(initialApiKey: String) : ViewModel() {
             // Asks the recognizer to finish with whatever it heard so far; onNativeSpeechResult
             // carries the turn the rest of the way through, asynchronously, same as if the
             // recognizer had reached natural silence on its own.
-            speechRecognizer?.stop()
+            speechRecognizer?.finish()
             return
         }
         val question = _state.value.currentBankQuestion ?: return
@@ -359,7 +359,10 @@ class TutorViewModel(initialApiKey: String) : ViewModel() {
     }
 
     companion object {
-        private const val MIC_ARM_DELAY_MS = 250L
+        // TTS and speech recognition share the same underlying "Speech Recognition & Synthesis
+        // from Google" service on many devices -- this buffer also gives that shared session time
+        // to actually release before the recognizer tries to grab it, not just the speaker.
+        private const val MIC_ARM_DELAY_MS = 400L
 
         // Whisper hallucinates boilerplate outro phrases on short/quiet clips with little real
         // signal -- it was trained on huge amounts of video data and falls back on things like
