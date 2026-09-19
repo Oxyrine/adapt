@@ -64,6 +64,11 @@ class TutorViewModel(initialApiKey: String) : ViewModel() {
     private var recordingStartTimeMs = 0L
 
     fun selectProfile(performance: Performance, regularity: Regularity) {
+        // A profile switch can happen mid voice-turn (e.g. navigating back to Profiles without
+        // finishing one) -- leaving mic/recognizer state pointing at the old turn means a result
+        // that arrives after the switch gets silently dropped, or worse, scored against whatever
+        // question happens to still be set. Tear down anything in flight before starting clean.
+        cleanupActiveVoiceTurn()
         _state.update {
             it.copy(
                 performance = performance,
@@ -71,9 +76,19 @@ class TutorViewModel(initialApiKey: String) : ViewModel() {
                 messages = emptyList(),
                 sessionMetrics = SessionMetrics(),
                 lastConfidenceReadout = null,
+                currentBankQuestion = null,
+                micState = MicState.IDLE,
                 error = null
             )
         }
+    }
+
+    private fun cleanupActiveVoiceTurn() {
+        voiceEngine?.stop()
+        usingNativeRecognition = false
+        speechRecognizer?.finish()
+        recorder?.stopAndGetPcm()
+        recorder = null
     }
 
     fun sendText(userText: String) {
