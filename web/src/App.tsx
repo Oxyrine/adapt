@@ -599,17 +599,18 @@ export const App: React.FC = () => {
       }
     }
 
-    // A live transcript that's pure punctuation/noise ("." from misheard silence) or a known
-    // Whisper hallucination has no real content to score or reply to -- without this guard it
-    // still reaches the scorer (whose signals all read as zero, i.e. falsely "confident") and the
-    // LLM, which then improvises a reply disconnected from what was actually asked. Only applies
-    // to the live-transcription branch below; offline/fixture words always have real content.
+    // A blank transcript (mic heard nothing), pure punctuation/noise ("." from misheard silence),
+    // or a known Whisper hallucination all have no real content to score or reply to. Without this
+    // guard a blank result silently becomes the canned "it's eleven" fixture -- an answer nobody
+    // gave, scored and replied to as if it were real -- and a garbage transcript still reaches the
+    // scorer (whose signals all read as zero, i.e. falsely "confident") and the LLM. Only the
+    // explicit Offline Sample toggle below should ever reach for the fixture.
     const rawLiveTranscript = transcriptBufferRef.current.trim();
     const normalizedLiveTranscript = rawLiveTranscript.toLowerCase().replace(/^[,.?!…\-;:"'()]+|[,.?!…\-;:"'()]+$/g, '');
     const liveTranscriptHasContent =
       /[a-z0-9]/i.test(rawLiveTranscript) && !HALLUCINATED_PHRASES.has(normalizedLiveTranscript);
 
-    if (!offlineMode && transcriptBufferRef.current.trim() !== '' && !liveTranscriptHasContent) {
+    if (!offlineMode && !liveTranscriptHasContent) {
       setError("Didn't catch an actual answer -- try again.");
       setBusy(false);
       setMicState('IDLE');
@@ -619,7 +620,7 @@ export const App: React.FC = () => {
     }
 
     let words: Word[];
-    if (offlineMode || transcriptBufferRef.current.trim() === '') {
+    if (offlineMode) {
       words = question.expectedAnswer === 'twelve'
         ? OfflineFixtures.hesitantCorrect
         : OfflineFixtures.confidentWrong;

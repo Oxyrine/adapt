@@ -210,11 +210,19 @@ class TutorViewModel(initialApiKey: String) : ViewModel() {
         _state.update { it.copy(micState = MicState.PROCESSING, busy = true, error = null) }
         viewModelScope.launch {
             try {
+                // A genuinely blank result (mic heard nothing) is not the same as the student
+                // asking for the offline sample -- silently substituting a canned "it's eleven"
+                // for it means an answer nobody gave gets scored and replied to as if it were
+                // real. Only the explicit toggle should ever reach for the fixture.
+                if (!_state.value.offlineMode && transcript.isBlank()) {
+                    _state.update { it.copy(error = "Didn't catch an actual answer -- try again.") }
+                    return@launch
+                }
                 // No word-level timestamps from this API (see AndroidSpeechRecognizer's kdoc) --
                 // synthesize per-word timing from total elapsed time, identical to the web app's
                 // own Web Speech path (App.tsx's live-transcription branch).
                 val elapsedMs = (System.currentTimeMillis() - recordingStartTimeMs).coerceAtLeast(300L)
-                val words = if (_state.value.offlineMode || transcript.isBlank()) {
+                val words = if (_state.value.offlineMode) {
                     offlineFixtureFor(question)
                 } else {
                     wordsFromTranscript(transcript, elapsedMs)
@@ -250,24 +258,32 @@ class TutorViewModel(initialApiKey: String) : ViewModel() {
         // zero, i.e. falsely "confident") and the LLM, which then improvises a reply disconnected
         // from what was actually asked.
         if (!looksLikeRealAnswer(words)) {
-            _state.update { it.copy(error = "Didn't catch an actual answer -- try again.") }
+            // resolveWords may already have set a more specific message (e.g. a transcription API
+            // failure) -- keep that instead of overwriting it with the generic one.
+            _state.update { it.copy(error = it.error ?: "Didn't catch an actual answer -- try again.") }
             return
         }
         scoreAndRespond(question, words)
     }
 
     private suspend fun resolveWords(question: BankQuestion, pcm: ByteArray?): List<Word> {
-        if (_state.value.offlineMode || pcm == null || pcm.isEmpty()) {
+        if (_state.value.offlineMode) {
             return offlineFixtureFor(question)
+        }
+        if (pcm == null || pcm.isEmpty()) {
+            // No audio was actually captured -- this is "no answer", not a fabricated one. Only
+            // the explicit Offline Sample toggle above should ever reach for the fixture.
+            return emptyList()
         }
         val wavBytes = WavEncoder.pcmToWav(pcm)
         return when (val result = GroqClient.transcribeWithTimestamps(apiKey, wavBytes)) {
             is GroqResult.Success -> result.value
             is GroqResult.Failure -> {
-                // Build-now network-failure path: degrade to "canned but honest" rather than
-                // stalling or crashing a live demo -- see plan's promoted section.
-                _state.update { it.copy(error = "${result.message} -- using offline sample", offlineMode = true) }
-                offlineFixtureFor(question)
+                // A failed transcription call is a real error worth surfacing, not something to
+                // silently paper over by answering on the student's behalf with a canned wrong
+                // answer ("it's eleven") that has nothing to do with what they actually said.
+                _state.update { it.copy(error = result.message) }
+                emptyList()
             }
         }
     }
