@@ -21,10 +21,19 @@ object FallbackReplies {
             EncouragementLevel.STANDARD -> ENCOURAGEMENT_STANDARD
             EncouragementLevel.HIGH -> ENCOURAGEMENT_HIGH
         }
+        // "That tracks" / "on the right track" claim the answer was fine -- said unconditionally,
+        // that's exactly the false "correct/good job for a wrong answer" bug this whole demo
+        // exists to prevent, just baked into the canned offline text instead of the live prompt.
+        // Encouragement (above) can still praise the effort when wrong; the body must not imply
+        // the answer itself was right.
         val body = when (profile.structure) {
-            StructureLevel.LOOSE ->
+            StructureLevel.LOOSE -> if (correct == false)
+                "By the way, this one needs another look. Let's keep going at your own pace -- no need to rush it."
+            else
                 "By the way, that tracks. Let's keep going at your own pace -- no need to rush this one."
-            StructureLevel.MEDIUM ->
+            StructureLevel.MEDIUM -> if (correct == false)
+                "First, let's take a closer look at this one. Next, let's build on it a little before moving on."
+            else
                 "First, that's on the right track. Next, let's build on it a little before moving on."
             StructureLevel.TIGHT ->
                 "First, note the key point. Next, check it against the question. Then, move to the next step."

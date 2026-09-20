@@ -11,13 +11,22 @@ export const FallbackReplies = {
         ? this.ENCOURAGEMENT_HIGH
         : this.ENCOURAGEMENT_STANDARD;
 
+    // "That tracks" / "on the right track" claim the answer was fine -- said unconditionally,
+    // that's exactly the false "correct/good job for a wrong answer" bug this whole demo exists
+    // to prevent, just baked into the canned offline text instead of the live prompt.
+    // Encouragement (above) can still praise the effort when wrong; the body must not imply the
+    // answer itself was right.
     let body = '';
     switch (profile.structure) {
       case 'LOOSE':
-        body = "By the way, that tracks. Let's keep going at your own pace -- no need to rush this one.";
+        body = correct === false
+          ? "By the way, this one needs another look. Let's keep going at your own pace -- no need to rush it."
+          : "By the way, that tracks. Let's keep going at your own pace -- no need to rush this one.";
         break;
       case 'MEDIUM':
-        body = "First, that's on the right track. Next, let's build on it a little before moving on.";
+        body = correct === false
+          ? "First, let's take a closer look at this one. Next, let's build on it a little before moving on."
+          : "First, that's on the right track. Next, let's build on it a little before moving on.";
         break;
       case 'TIGHT':
         body = "First, note the key point. Next, check it against the question. Then, move to the next step.";

@@ -246,6 +246,25 @@ class CoreTest {
         assertNotEquals(confidentWrong, confidentRight)
     }
 
+    @Test
+    fun `fallback reply body never implies a wrong answer was on track`() {
+        // Hit live: the canned offline text said "that tracks" / "that's on the right track"
+        // unconditionally, so a wrong answer during a network outage still read as endorsed --
+        // the exact bug the live-path ground-truth fix (Routing.promptAddendum) exists to prevent,
+        // just baked into the fallback text instead of the LLM prompt.
+        val loose = ToneTable.lookup(Performance.STRONG, Regularity.CONSISTENT)
+        val medium = ToneTable.lookup(Performance.STRONG, Regularity.GAPPED)
+
+        val looseWrong = FallbackReplies.reply(loose, correct = false, band = ConfidenceBand.HIGH)
+        val mediumWrong = FallbackReplies.reply(medium, correct = false, band = ConfidenceBand.HIGH)
+        assertFalse(looseWrong.contains("tracks", ignoreCase = true))
+        assertFalse(mediumWrong.contains("right track", ignoreCase = true))
+
+        // The correct-answer case is untouched -- still allowed to say the answer tracks.
+        val looseRight = FallbackReplies.reply(loose, correct = true, band = ConfidenceBand.HIGH)
+        assertTrue(looseRight.contains("tracks", ignoreCase = true))
+    }
+
     // ---- Groq response parsing -- payloads below follow Groq's documented OpenAI-compatible
     // shape, NOT a live-captured response (unlike the Gemini contract, which only got locked down
     // after real curl calls exposed the docs were wrong -- see plan Finding 2). ponytail: treat
