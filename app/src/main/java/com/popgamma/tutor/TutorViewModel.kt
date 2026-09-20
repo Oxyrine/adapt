@@ -34,7 +34,6 @@ data class TutorUiState(
     val micState: MicState = MicState.IDLE,
     val currentBankQuestion: BankQuestion? = null,
     val lastConfidenceReadout: ConfidenceReadout? = null,
-    val offlineMode: Boolean = false,
     val error: String? = null,
     val busy: Boolean = false
 ) {
@@ -196,9 +195,8 @@ class TutorViewModel(initialApiKey: String) : ViewModel() {
                 // If the mic never picked up anything loud enough to register as speech, don't
                 // even send the clip to Whisper -- a near-silent clip is exactly what makes it
                 // hallucinate boilerplate ("you", "Thank you.") instead of failing honestly, and
-                // no phrase blocklist can keep up with every phrase it might invent. Skipped when
-                // offline (there's no live mic clip to judge) or the sample toggle is on.
-                val skipTranscription = !_state.value.offlineMode && pcm != null && pcm.isNotEmpty() && !hadDetectedSpeech
+                // no phrase blocklist can keep up with every phrase it might invent.
+                val skipTranscription = pcm != null && pcm.isNotEmpty() && !hadDetectedSpeech
                 if (skipTranscription) {
                     _state.update { it.copy(error = "Didn't catch an actual answer -- try again.") }
                     return@launch
@@ -225,11 +223,10 @@ class TutorViewModel(initialApiKey: String) : ViewModel() {
         _state.update { it.copy(micState = MicState.PROCESSING, busy = true, error = null) }
         viewModelScope.launch {
             try {
-                // A genuinely blank result (mic heard nothing) is not the same as the student
-                // asking for the offline sample -- silently substituting a canned "it's eleven"
-                // for it means an answer nobody gave gets scored and replied to as if it were
-                // real. Only the explicit toggle should ever reach for the fixture.
-                if (!_state.value.offlineMode && transcript.isBlank()) {
+                // A genuinely blank result (mic heard nothing) is not a real answer -- silently
+                // substituting a canned "it's eleven" for it means an answer nobody gave gets
+                // scored and replied to as if it were real.
+                if (transcript.isBlank()) {
                     _state.update { it.copy(error = "Didn't catch an actual answer -- try again.") }
                     return@launch
                 }
@@ -237,11 +234,7 @@ class TutorViewModel(initialApiKey: String) : ViewModel() {
                 // synthesize per-word timing from total elapsed time, identical to the web app's
                 // own Web Speech path (App.tsx's live-transcription branch).
                 val elapsedMs = (System.currentTimeMillis() - recordingStartTimeMs).coerceAtLeast(300L)
-                val words = if (_state.value.offlineMode) {
-                    offlineFixtureFor(question)
-                } else {
-                    wordsFromTranscript(transcript, elapsedMs)
-                }
+                val words = wordsFromTranscript(transcript, elapsedMs)
                 completeVoiceTurn(question, words)
             } catch (e: Exception) {
                 val profile = _state.value.toneProfile
@@ -282,12 +275,8 @@ class TutorViewModel(initialApiKey: String) : ViewModel() {
     }
 
     private suspend fun resolveWords(question: BankQuestion, pcm: ByteArray?): List<Word> {
-        if (_state.value.offlineMode) {
-            return offlineFixtureFor(question)
-        }
         if (pcm == null || pcm.isEmpty()) {
-            // No audio was actually captured -- this is "no answer", not a fabricated one. Only
-            // the explicit Offline Sample toggle above should ever reach for the fixture.
+            // No audio was actually captured -- this is "no answer", not a fabricated one.
             return emptyList()
         }
         val wavBytes = WavEncoder.pcmToWav(pcm)
@@ -302,9 +291,6 @@ class TutorViewModel(initialApiKey: String) : ViewModel() {
             }
         }
     }
-
-    private fun offlineFixtureFor(question: BankQuestion): List<Word> =
-        if (question.expectedAnswer == "twelve") OfflineFixtures.hesitantCorrect else OfflineFixtures.confidentWrong
 
     private suspend fun scoreAndRespond(question: BankQuestion, words: List<Word>) {
         val profile = _state.value.toneProfile
@@ -375,7 +361,6 @@ class TutorViewModel(initialApiKey: String) : ViewModel() {
     }
 
     fun toggleVoiceMode(enabled: Boolean) = _state.update { it.copy(voiceMode = enabled) }
-    fun toggleOfflineMode(enabled: Boolean) = _state.update { it.copy(offlineMode = enabled) }
     fun dismissError() = _state.update { it.copy(error = null) }
 
     fun updateApiKey(newKey: String) {

@@ -57,7 +57,6 @@ export const App: React.FC = () => {
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [sessionMetrics, setSessionMetrics] = useState<SessionMetrics>(createInitialSessionMetrics());
   const [snapshots, setSnapshots] = useState<MetricsSnapshot[]>([]);
-  const [offlineMode, setOfflineMode] = useState<boolean>(false);
   const [micState, setMicState] = useState<MicState>('IDLE');
   const [currentBankQuestion, setCurrentBankQuestion] = useState<BankQuestion | null>(null);
   const [lastConfidenceReadout, setLastConfidenceReadout] = useState<ConfidenceReadout | null>(null);
@@ -315,7 +314,7 @@ export const App: React.FC = () => {
 
     const prompt = PromptBuilder.buildPrompt(profile, null, conversationContext(), text);
 
-    if (offlineMode || !apiKey.trim()) {
+    if (!apiKey.trim()) {
       const reply = FallbackReplies.reply(profile);
       applyReply(reply);
       return;
@@ -586,7 +585,7 @@ export const App: React.FC = () => {
       if (directResult.speechDetected) {
         setVadStatus('Transcribing speech with Groq...');
         let transcribed = '';
-        if (apiKey.trim() && !offlineMode) {
+        if (apiKey.trim()) {
           const tr = await GroqClient.transcribeAudio(apiKey, directResult.wavBase64);
           if (tr.success && tr.value) {
             transcribed = tr.value;
@@ -603,14 +602,13 @@ export const App: React.FC = () => {
     // or a known Whisper hallucination all have no real content to score or reply to. Without this
     // guard a blank result silently becomes the canned "it's eleven" fixture -- an answer nobody
     // gave, scored and replied to as if it were real -- and a garbage transcript still reaches the
-    // scorer (whose signals all read as zero, i.e. falsely "confident") and the LLM. Only the
-    // explicit Offline Sample toggle below should ever reach for the fixture.
+    // scorer (whose signals all read as zero, i.e. falsely "confident") and the LLM.
     const rawLiveTranscript = transcriptBufferRef.current.trim();
     const normalizedLiveTranscript = rawLiveTranscript.toLowerCase().replace(/^[,.?!…\-;:"'()]+|[,.?!…\-;:"'()]+$/g, '');
     const liveTranscriptHasContent =
       /[a-z0-9]/i.test(rawLiveTranscript) && !HALLUCINATED_PHRASES.has(normalizedLiveTranscript);
 
-    if (!offlineMode && !liveTranscriptHasContent) {
+    if (!liveTranscriptHasContent) {
       setError("Didn't catch an actual answer -- try again.");
       setBusy(false);
       setMicState('IDLE');
@@ -619,22 +617,15 @@ export const App: React.FC = () => {
       return;
     }
 
-    let words: Word[];
-    if (offlineMode) {
-      words = question.expectedAnswer === 'twelve'
-        ? OfflineFixtures.hesitantCorrect
-        : OfflineFixtures.confidentWrong;
-    } else {
-      const elapsed = Math.max(300, Date.now() - recordingStartTimeRef.current);
-      const tokens = transcriptBufferRef.current.trim().split(/\s+/).filter(Boolean);
-      const wordDuration = Math.round(Math.min(600, Math.max(150, elapsed / Math.max(1, tokens.length))));
-      const latencyMs = Math.max(200, elapsed - tokens.length * wordDuration);
-      words = tokens.map((tok, idx) => ({
-        text: tok,
-        startMs: latencyMs + idx * wordDuration,
-        endMs: latencyMs + (idx + 1) * wordDuration
-      }));
-    }
+    const elapsed = Math.max(300, Date.now() - recordingStartTimeRef.current);
+    const tokens = transcriptBufferRef.current.trim().split(/\s+/).filter(Boolean);
+    const wordDuration = Math.round(Math.min(600, Math.max(150, elapsed / Math.max(1, tokens.length))));
+    const latencyMs = Math.max(200, elapsed - tokens.length * wordDuration);
+    const words: Word[] = tokens.map((tok, idx) => ({
+      text: tok,
+      startMs: latencyMs + idx * wordDuration,
+      endMs: latencyMs + (idx + 1) * wordDuration
+    }));
 
     // Immediately score and answer with ZERO delay!
     scoreAndRespond(question, words);
@@ -666,7 +657,7 @@ export const App: React.FC = () => {
     const addendum = Routing.promptAddendum(correct, band, question.expectedAnswer);
     const prompt = PromptBuilder.buildPrompt(profile, addendum, conversationContext(), transcript);
 
-    if (offlineMode || !apiKey.trim()) {
+    if (!apiKey.trim()) {
       applyReply(FallbackReplies.reply(profile, correct, band));
       return;
     }
@@ -952,18 +943,6 @@ export const App: React.FC = () => {
                       <span>Albert is thinking...</span>
                     </div>
                   )}
-                </div>
-
-                {/* Toggles Strip */}
-                <div className="toggles-strip">
-                  <label className="toggle-label">
-                    <input
-                      type="checkbox"
-                      checked={offlineMode}
-                      onChange={e => setOfflineMode(e.target.checked)}
-                    />
-                    <span>Offline Sample</span>
-                  </label>
                 </div>
 
                 {/* Voice is always available now -- no separate "enable voice mode" toggle. One

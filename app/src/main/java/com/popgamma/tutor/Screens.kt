@@ -91,7 +91,6 @@ fun TutorApp(
                         onToggleVoice = viewModel::toggleVoiceMode,
                         onStartVoiceTurn = viewModel::startVoiceTurn,
                         onStopVoiceTurn = viewModel::stopVoiceTurnAndScore,
-                        onToggleOffline = viewModel::toggleOfflineMode,
                         onSnapshot = viewModel::snapshotCurrentProfile,
                         onBackToProfiles = { screen = Screen.PROFILE },
                         onDismissError = viewModel::dismissError
@@ -198,7 +197,6 @@ private fun ChatScreen(
     onToggleVoice: (Boolean) -> Unit,
     onStartVoiceTurn: (BankQuestion) -> Unit,
     onStopVoiceTurn: () -> Unit,
-    onToggleOffline: (Boolean) -> Unit,
     onSnapshot: () -> Unit,
     onBackToProfiles: () -> Unit,
     onDismissError: () -> Unit
@@ -256,9 +254,6 @@ private fun ChatScreen(
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Text("Voice mode")
                 Switch(checked = state.voiceMode, onCheckedChange = onToggleVoice)
-                Spacer(Modifier.weight(1f, fill = true))
-                Text("Offline sample")
-                Switch(checked = state.offlineMode, onCheckedChange = onToggleOffline)
             }
 
             if (state.voiceMode) {
