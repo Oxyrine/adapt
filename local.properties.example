@@ -1,4 +1,6 @@
 # Copy this file to local.properties (gitignored) and fill in your key.
-# A shipped build must not embed this key client-side -- see spec Section 6 and
-# the README note on the same point. This is demo-only.
-GEMINI_API_KEY=your-api-key-here
+# A shipped build must not embed this key client-side -- see the README note on
+# the same point. This is demo-only; a downloaded APK also lets you enter a key
+# at runtime from the in-app settings screen, since a build-time key here is
+# empty for anyone who didn't build it themselves.
+GROQ_API_KEY=your-api-key-here
