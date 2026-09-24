@@ -1,0 +1,546 @@
+<title>Adaptive Tutor Tone</title>
+<meta name="description" content="Interview prep reference: the product, the guarantees, the bugs found, and the limitations, all sourced from the actual codebase.">
+<style>
+  :root {
+    --paper: #f5f5f7;
+    --paper-raised: #ffffff;
+    --ink: #1c1b22;
+    --ink-soft: #52505c;
+    --ink-faint: #8b8994;
+    --line: #dedce4;
+    --accent: #5b3fa6;
+    --accent-soft: #efebfa;
+    --accent-ink: #3d2a70;
+    --bug: #b5541f;
+    --bug-soft: #f8e9df;
+    --pass: #2f6b4f;
+    --pass-soft: #e3f0e9;
+    --code-bg: #eceaf3;
+    color-scheme: light;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      --paper: #17161c;
+      --paper-raised: #201f27;
+      --ink: #eeecf3;
+      --ink-soft: #b7b4c2;
+      --ink-faint: #7c7986;
+      --line: #34323d;
+      --accent: #a58cec;
+      --accent-soft: #2a2440;
+      --accent-ink: #cabdf2;
+      --bug: #e08a53;
+      --bug-soft: #3a2a1e;
+      --pass: #7fc9a1;
+      --pass-soft: #1f3128;
+      --code-bg: #2a2735;
+      color-scheme: dark;
+    }
+  }
+  :root[data-theme="dark"] {
+    --paper: #17161c;
+    --paper-raised: #201f27;
+    --ink: #eeecf3;
+    --ink-soft: #b7b4c2;
+    --ink-faint: #7c7986;
+    --line: #34323d;
+    --accent: #a58cec;
+    --accent-soft: #2a2440;
+    --accent-ink: #cabdf2;
+    --bug: #e08a53;
+    --bug-soft: #3a2a1e;
+    --pass: #7fc9a1;
+    --pass-soft: #1f3128;
+    --code-bg: #2a2735;
+    color-scheme: dark;
+  }
+
+  * { box-sizing: border-box; }
+  body {
+    background: var(--paper);
+    color: var(--ink);
+    font-family: "IBM Plex Sans", -apple-system, BlinkMacSystemFont, sans-serif;
+    line-height: 1.6;
+    font-size: 16px;
+    padding: 0 20px;
+    padding-block: 40px;
+  }
+  main { max-width: 720px; margin: 0 auto; }
+
+  h1, h2, h3 { font-family: "Newsreader", Georgia, serif; text-wrap: balance; }
+  h1 {
+    font-size: clamp(2rem, 5vw, 2.75rem);
+    font-weight: 600;
+    letter-spacing: -0.01em;
+    margin: 0 0 6px;
+  }
+  .subtitle {
+    font-size: 1.05rem;
+    color: var(--ink-soft);
+    font-style: italic;
+    margin: 0 0 4px;
+  }
+  .meta {
+    font-family: "IBM Plex Mono", monospace;
+    font-size: 0.75rem;
+    color: var(--ink-faint);
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+    margin: 0 0 32px;
+  }
+
+  h2 {
+    font-size: 1.5rem;
+    font-weight: 600;
+    margin: 56px 0 6px;
+    display: flex;
+    align-items: baseline;
+    gap: 12px;
+  }
+  h2 .num {
+    font-family: "IBM Plex Mono", monospace;
+    font-size: 0.85rem;
+    font-weight: 500;
+    color: var(--accent);
+    letter-spacing: 0.04em;
+  }
+  h2 + .lede {
+    color: var(--ink-soft);
+    margin: 0 0 20px;
+    font-size: 0.97rem;
+  }
+  h3 {
+    font-size: 1.12rem;
+    font-weight: 600;
+    margin: 28px 0 8px;
+    color: var(--ink);
+  }
+
+  p { margin: 0 0 14px; }
+  ul, ol { margin: 0 0 14px; padding-left: 22px; }
+  li { margin-bottom: 6px; }
+  strong { font-weight: 650; }
+  em { color: var(--ink-soft); }
+
+  code, .kv code {
+    font-family: "IBM Plex Mono", monospace;
+    font-size: 0.86em;
+    background: var(--code-bg);
+    padding: 0.1em 0.4em;
+    border-radius: 4px;
+  }
+
+  .rule {
+    border: none;
+    border-top: 1px solid var(--line);
+    margin: 48px 0 0;
+  }
+
+  /* Contents box */
+  nav.toc {
+    background: var(--paper-raised);
+    border: 1px solid var(--line);
+    border-radius: 12px;
+    padding: 18px 22px;
+    margin: 28px 0 8px;
+  }
+  nav.toc h2 {
+    margin: 0 0 10px;
+    font-size: 0.78rem;
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    font-family: "IBM Plex Mono", monospace;
+    color: var(--ink-faint);
+    font-weight: 500;
+  }
+  nav.toc ol { list-style: none; padding: 0; margin: 0; columns: 1; }
+  nav.toc li { margin-bottom: 5px; }
+  nav.toc a {
+    color: var(--ink);
+    text-decoration: none;
+    font-size: 0.94rem;
+  }
+  nav.toc a:hover { color: var(--accent); }
+  nav.toc .n { font-family: "IBM Plex Mono", monospace; color: var(--accent); margin-right: 8px; font-size: 0.85em; }
+
+  /* Cheat-sheet grid */
+  .cheat-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+    gap: 10px;
+    margin: 16px 0 24px;
+  }
+  .cheat-item {
+    background: var(--paper-raised);
+    border: 1px solid var(--line);
+    border-radius: 10px;
+    padding: 12px 14px;
+  }
+  .cheat-item .label {
+    font-family: "IBM Plex Mono", monospace;
+    font-size: 0.7rem;
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+    color: var(--ink-faint);
+    display: block;
+    margin-bottom: 4px;
+  }
+  .cheat-item .value {
+    font-family: "IBM Plex Mono", monospace;
+    font-size: 0.92rem;
+    color: var(--accent-ink);
+  }
+
+  /* Tone table */
+  table {
+    width: 100%;
+    border-collapse: collapse;
+    margin: 16px 0 24px;
+    font-size: 0.92rem;
+  }
+  th, td {
+    text-align: left;
+    padding: 9px 10px;
+    border-bottom: 1px solid var(--line);
+  }
+  th {
+    font-family: "IBM Plex Mono", monospace;
+    font-size: 0.72rem;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    color: var(--ink-faint);
+    font-weight: 500;
+  }
+  td code { white-space: nowrap; }
+
+  /* Callout boxes */
+  .box {
+    border-radius: 10px;
+    padding: 16px 18px;
+    margin: 16px 0 20px;
+    border: 1px solid var(--line);
+  }
+  .box.accent { background: var(--accent-soft); border-color: transparent; }
+  .box.pass { background: var(--pass-soft); border-color: transparent; }
+  .box p:last-child { margin-bottom: 0; }
+
+  /* Bug cards */
+  .bug {
+    background: var(--paper-raised);
+    border: 1px solid var(--line);
+    border-radius: 8px;
+    padding: 16px 18px;
+    margin: 0 0 16px;
+  }
+  .bug .tag {
+    display: inline-block;
+    font-family: "IBM Plex Mono", monospace;
+    font-size: 0.68rem;
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+    color: var(--bug);
+    background: var(--bug-soft);
+    padding: 2px 8px;
+    border-radius: 999px;
+    margin-bottom: 8px;
+  }
+  .bug h3 { margin: 0 0 8px; font-size: 1.02rem; }
+  .bug .fix {
+    margin-top: 10px;
+    padding-top: 10px;
+    border-top: 1px dashed var(--line);
+  }
+  .bug .fix .tag { color: var(--pass); background: var(--pass-soft); }
+
+  /* Q&A */
+  .qa { margin-bottom: 20px; }
+  .qa .q {
+    font-weight: 650;
+    margin-bottom: 6px;
+    display: flex;
+    gap: 8px;
+  }
+  .qa .q::before { content: "Q"; color: var(--accent); font-family: "IBM Plex Mono", monospace; }
+  .qa .a { padding-left: 20px; color: var(--ink); }
+  .qa .a::before { content: none; }
+
+  .backtotop {
+    display: inline-block;
+    margin-top: 6px;
+    font-family: "IBM Plex Mono", monospace;
+    font-size: 0.72rem;
+    color: var(--ink-faint);
+    text-decoration: none;
+  }
+  .backtotop:hover { color: var(--accent); }
+
+  footer {
+    margin-top: 60px;
+    padding-top: 20px;
+    border-top: 1px solid var(--line);
+    font-size: 0.8rem;
+    color: var(--ink-faint);
+  }
+</style>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Newsreader:ital,wght@0,500;0,600;1,500&family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet">
+
+<main>
+  <h1>Adaptive Tutor Tone</h1>
+  <p class="subtitle">Interview prep, in plain language you can actually say out loud.</p>
+  <p class="meta">PopGamma internship project -- Aakash A &amp; Abdul Haashir</p>
+
+  <p>This walks through the app the way you'd explain it to someone across the table: what it does, why it's built the way it is, the real problems that came up while building it, and the honest gaps. No jargon you'd have to translate mid-sentence.</p>
+
+  <nav class="toc">
+    <h2>Contents</h2>
+    <ol>
+      <li><a href="#pitch"><span class="n">01</span>What the app actually is</a></li>
+      <li><a href="#problem"><span class="n">02</span>Why it needed to exist</a></li>
+      <li><a href="#rules"><span class="n">03</span>The two promises it can't break</a></li>
+      <li><a href="#concepts"><span class="n">04</span>How it actually works</a></li>
+      <li><a href="#architecture"><span class="n">05</span>What it's built with</a></li>
+      <li><a href="#guarantees"><span class="n">06</span>How we know the promises hold</a></li>
+      <li><a href="#bugs"><span class="n">07</span>Real problems we hit and fixed</a></li>
+      <li><a href="#limitations"><span class="n">08</span>What it doesn't do yet</a></li>
+      <li><a href="#prompting"><span class="n">09</span>What we learned about AI models</a></li>
+      <li><a href="#qa"><span class="n">10</span>Questions they might actually ask</a></li>
+      <li><a href="#cheatsheet"><span class="n">11</span>Numbers, if they push for specifics</a></li>
+    </ol>
+  </nav>
+
+  <h2 id="pitch"><span class="num">01</span>What the app actually is</h2>
+  <div class="box accent">
+    <p>It's a demo AI tutor, called Prof. Albert, that changes how it talks to a student based on two things: how that student has generally been doing, and how sure they sounded on the specific answer they just gave. The one rule holding the whole thing together: however the tutor adapts, it's never allowed to get less encouraging toward a student who's struggling.</p>
+  </div>
+  <p>It runs as two working apps -- a website and an Android app -- built so you can hand it to someone, have them pick a student type, watch the tutor's whole personality shift in real time, and then compare two student types side by side to see for themselves that the tutor gets stricter without ever getting colder.</p>
+
+  <h2 id="problem"><span class="num">02</span>Why it needed to exist</h2>
+  <p class="lede">Two separate things were broken about a normal AI tutor, not one.</p>
+  <p><strong>First: every student gets the same personality.</strong> Most tutoring apps talk to a struggling student exactly the same way they talk to a top student. That doesn't come across as fair, it comes across as not paying attention.</p>
+  <p><strong>Second: it can't tell a lucky wrong guess from a shaky right answer.</strong> A student who answers confidently but is wrong needs a very different response than one who's hesitant but actually right. Most tutors only check whether the final answer matches, so they can't tell those two situations apart -- and sooner or later that means praising a wrong answer, which is the kind of moment that makes a parent stop trusting the product.</p>
+  <p><strong>The trap we were most worried about:</strong> the moment you let a tutor "adapt," it's very easy for that to quietly turn into the tutor being harsher or colder toward exactly the students who need the most patience. That risk is why the next section exists -- we didn't want to just promise it wouldn't happen, we wanted to make it impossible.</p>
+
+  <h2 id="rules"><span class="num">03</span>The two promises it can't break</h2>
+  <p class="lede">We wrote these down before writing any of the tutor's actual behavior, and we built the app so it's physically incapable of breaking them.</p>
+  <table>
+    <tr><th style="width:90px">Promise</th><th>In plain words</th></tr>
+    <tr>
+      <td><strong>1</strong></td>
+      <td>The tutor is allowed to get stricter and more step-by-step for a student who needs that. But its warmth can only stay the same or go up -- it can never go down.</td>
+    </tr>
+    <tr>
+      <td><strong>2</strong></td>
+      <td>A student's general track record decides the tutor's overall personality for the session. How confident they sounded on one specific answer only decides how deep the explanation goes -- it's never allowed to change how warm the tutor sounds.</td>
+    </tr>
+  </table>
+  <p>These aren't just design goals we tried to follow -- they're checked automatically every time the code is built (more on that in §06), so if anyone accidentally breaks either promise later, the build itself fails and tells them.</p>
+
+  <h2 id="concepts"><span class="num">04</span>How it actually works</h2>
+
+  <h3>Picking the tutor's personality</h3>
+  <p>Two things about a student combine to decide how the tutor talks to them: <strong>how they're generally performing</strong> (strong or struggling) and <strong>how regularly they show up</strong> (consistent or with gaps in attendance). Crossing those two gives four student types, and each one gets a fixed personality:</p>
+  <table>
+    <tr><th>Student type</th><th>How structured the replies are</th><th>How much encouragement</th></tr>
+    <tr><td>Strong, consistent</td><td>Loose and casual</td><td>Standard</td></tr>
+    <tr><td>Strong, with gaps</td><td>A bit more structured</td><td>Standard</td></tr>
+    <tr><td>Struggling, consistent</td><td>Tight and step-by-step</td><td>Standard</td></tr>
+    <tr><td>Struggling, with gaps</td><td>Tight and step-by-step</td><td><strong>High</strong></td></tr>
+  </table>
+  <p>The pattern to point out if asked: encouragement never drops as the structure gets stricter -- it either stays the same or, for the hardest case, actually goes up. That's Promise 1 from §03, visible directly in the table.</p>
+
+  <h3>Three ways the tutor's replies can feel</h3>
+  <ul>
+    <li><strong>Loose</strong> -- talks like a relaxed study buddy, works in a joke or a fun fact almost every time, skips numbered steps unless the question really needs them.</li>
+    <li><strong>Medium</strong> -- a couple of sentences, explains with some structure when needed, an occasional light aside but not forced.</li>
+    <li><strong>Tight</strong> -- no small talk, no jokes, every explanation is numbered step by step, kept short and businesslike.</li>
+  </ul>
+
+  <h3>How "confidence" is actually measured</h3>
+  <p>This is the part worth getting right if someone pushes on it: the tutor never guesses how a student <em>feels</em>. It measures three plain things about how they spoke their answer out loud:</p>
+  <ol>
+    <li><strong>How long they paused</strong> before starting to answer.</li>
+    <li><strong>How often they hedged</strong> -- words like "um," "I think," "not sure." One deliberate exception: the word "like" is never counted, because for the age group this app is aimed at, "like" is just how people talk, not a sign of hesitation. Counting it would've punished a normal speech habit instead of measuring actual uncertainty.</li>
+    <li><strong>Whether they corrected themselves</strong> mid-answer -- repeating a word, restarting a phrase, saying "actually, no wait."</li>
+  </ol>
+  <p>If at least two of those three cross a set line, the answer counts as "less confident." That's a fixed rule based on a number, not the AI's opinion about the student -- which matters, because it means you can always point to exactly why the app decided what it decided, instead of just trusting a black box.</p>
+
+  <h3>What confidence is allowed to change</h3>
+  <p>Whether the answer was actually right or wrong is checked separately and exactly (see §05). Crossing that with how confident they sounded gives four situations, and each one only changes <em>how deep the explanation goes</em> -- never the tutor's warmth:</p>
+  <table>
+    <tr><th>Was it right?</th><th>How they sounded</th><th>What happens</th></tr>
+    <tr><td>Right</td><td>Confident</td><td>Move straight on to the next question.</td></tr>
+    <tr><td>Right</td><td>Unsure</td><td>Ask them to explain how they got it -- just to check understanding, not because they're doubted.</td></tr>
+    <tr><td>Wrong</td><td>Unsure</td><td>A gentle correction -- treated like a careless slip, not a real misunderstanding.</td></tr>
+    <tr><td>Wrong</td><td>Confident</td><td><strong>A full, direct explanation.</strong> A confident wrong answer is the strongest sign of an actual misunderstanding, so this is the one case that gets the deepest response.</td></tr>
+  </table>
+
+  <h2 id="architecture"><span class="num">05</span>What it's built with</h2>
+  <div class="box">
+    <p>The core decision-making -- picking the tutor's personality, scoring confidence, deciding how deep to explain something -- is written twice, once for each platform, with no app-specific code mixed in. That's what let us write plain automated tests for it that don't need a phone or a browser to run.</p>
+  </div>
+  <table>
+    <tr><th>Part</th><th>Website</th><th>Android app</th></tr>
+    <tr><td>Interface</td><td>React (a common web framework)</td><td>Kotlin, Android's native language</td></tr>
+    <tr><td>Listening to the student</td><td>The browser's own built-in speech recognition, with a backup path if that fails</td><td>Android's own built-in speech recognition, same idea</td></tr>
+    <tr><td>Speaking as the tutor</td><td>The browser's built-in text-to-speech</td><td>Android's built-in text-to-speech</td></tr>
+    <tr><td>Generating the tutor's replies</td><td colspan="2">A fast, low-cost AI model hosted by Groq</td></tr>
+    <tr><td>Where it lives</td><td>Hosted on Vercel</td><td>Downloadable straight from the website</td></tr>
+  </table>
+  <p><strong>Why the questions are fixed, not open-ended:</strong> there are only four questions the tutor asks, and each has one exact correct answer checked in code -- not judged by the AI. That's on purpose. If the AI itself had to decide whether an answer was right, you'd lose the ability to reliably show a "confident wrong answer" moment on demand in front of a reviewer -- the AI's judgment can vary; a fixed check doesn't.</p>
+
+  <h2 id="guarantees"><span class="num">06</span>How we know the promises hold</h2>
+  <p class="lede">If asked what you're most proud of about this project, this is the answer.</p>
+  <p>Instead of just building the tutor and hoping it behaved the way we wanted, we wrote the two promises from §03 as automated checks <em>before</em> most of the rest of the app existed. Every time the code is built, these checks run:</p>
+  <ul>
+    <li>One check walks through every student type and confirms a stricter one is never less encouraging than a looser one.</li>
+    <li>Another confirms no student type is ever encouraged less than the most relaxed one.</li>
+    <li>Another confirms the exact wording of the encouragement sent to the AI is <em>identical</em> across all four confidence situations from §04 -- proving warmth genuinely cannot shift depending on how confident the student sounded.</li>
+    <li>A last one confirms the "give a full explanation" response only ever fires for the one situation it's supposed to: a confident wrong answer.</li>
+  </ul>
+  <div class="box pass">
+    <p>If someone changes the code later in a way that breaks either promise, the build fails on the spot. Nobody has to notice by reading the tutor's replies and wondering if something feels off.</p>
+  </div>
+
+  <h2 id="bugs"><span class="num">07</span>Real problems we hit and fixed</h2>
+  <p class="lede">This is the most useful part to actually remember -- pick two or three and be ready to tell them like a short story: what went wrong, how we noticed, what we changed.</p>
+
+  <div class="bug">
+    <span class="tag">Problem</span>
+    <h3>A mic that heard nothing still got treated as a confident answer</h3>
+    <p>Sometimes the phone would mishear silence as just a stray punctuation mark. Since there was nothing to measure -- no pause, no hesitation, no self-correction -- the app read that as maximum confidence. Paired with the answer obviously being wrong, the tutor ended up confidently praising something the student never actually said.</p>
+    <div class="fix">
+      <span class="tag">What we changed</span>
+      <p>Before scoring anything, the app now checks whether there's real content in what it heard. If not, it says so honestly -- "didn't catch that, try again" -- instead of treating silence as a real answer.</p>
+    </div>
+  </div>
+
+  <div class="bug">
+    <span class="tag">Problem</span>
+    <h3>The transcription tool made things up on quiet clips</h3>
+    <p>When given a very short or quiet recording, the transcription service we use has a known habit of inventing generic filler like "you" or "Thank you," instead of failing honestly. Trying to block every possible made-up phrase one by one was never going to keep up.</p>
+    <div class="fix">
+      <span class="tag">What we changed</span>
+      <p>Instead of trying to catch every fake phrase after the fact, the app now checks whether the microphone ever actually picked up real speech volume in the first place. If it didn't, it skips sending that recording off to be transcribed at all.</p>
+    </div>
+  </div>
+
+  <div class="bug">
+    <span class="tag">Problem</span>
+    <h3>The Android app's listening was just worse than the website's</h3>
+    <p>The website listens to you live, the same way Chrome's voice typing does. The Android app, originally, recorded the whole answer first and only transcribed it afterward using a general-purpose model -- a fundamentally clunkier, less accurate approach, not just a setting that needed tuning.</p>
+    <div class="fix">
+      <span class="tag">What we changed</span>
+      <p>Switched the Android app to use the phone's own built-in live speech recognition -- the exact same system Chrome itself uses on Android -- so both platforms now genuinely listen the same way.</p>
+    </div>
+  </div>
+
+  <div class="bug">
+    <span class="tag">Problem</span>
+    <h3>"Can't record right now" kept popping up during testing</h3>
+    <p>After switching to the phone's built-in listener, a real system message started appearing repeatedly while testing several questions in a row: the phone was refusing to start listening again. It turned out the same background service handles both the tutor's spoken questions <em>and</em> listening to the student's answers -- and the app was shutting that service down and restarting it fresh every single turn, which didn't give it time to actually reset in between.</p>
+    <div class="fix">
+      <span class="tag">What we changed</span>
+      <p>The app now keeps one listening session open for as long as it's running, instead of tearing it down and rebuilding it every turn. Also added a short pause between the tutor finishing a sentence and the mic switching on, since both share that same background service.</p>
+    </div>
+  </div>
+
+  <div class="bug">
+    <span class="tag">Problem</span>
+    <h3>The AI sometimes couldn't tell if the student's answer was right</h3>
+    <p>The instructions we gave the AI told it <em>what kind of response to give</em>, but never actually told it whether the answer was correct -- it was expected to work that out itself from what the student said. For simple arithmetic, that's not something a fast, lightweight AI model reliably gets right on its own: it sometimes said "18" was correct for "nine times three," and sometimes skipped explaining a wrong answer entirely because it hadn't noticed anything was wrong.</p>
+    <div class="fix">
+      <span class="tag">What we changed</span>
+      <p>Since the app already knows the correct answer for certain (it's checked in code, not guessed), we now just tell the AI outright: "the correct answer is X." It no longer has to work that out itself.</p>
+    </div>
+  </div>
+
+  <div class="bug">
+    <span class="tag">Problem</span>
+    <h3>The backup reply text had the exact same mistake, separately</h3>
+    <p>When the live AI call fails for any reason, the app falls back to a pre-written reply so the demo doesn't just break. That backup text said "you're on the right track" no matter what -- even for a wrong answer. Fixing the AI's instructions (above) never touched this separate, hand-written fallback text.</p>
+    <div class="fix">
+      <span class="tag">What we changed</span>
+      <p>Made the fallback text check correctness too, so it only says "on the right track" when that's actually true. It still praises the effort either way -- just not the wrong answer itself.</p>
+    </div>
+  </div>
+
+  <div class="bug">
+    <span class="tag">Problem</span>
+    <h3>A "fake an answer" switch undercut the whole point of the app</h3>
+    <p>There was a manual switch that let you force a scripted, made-up answer instead of a real one. The entire pitch of this project is that every response is based on something real and measurable -- a switch that fakes it on demand works against that, and it's exactly the kind of thing an interviewer would (and did) ask about.</p>
+    <div class="fix">
+      <span class="tag">What we changed</span>
+      <p>Removed that manual switch completely. We kept the separate, automatic fallback that only kicks in if a live API call genuinely fails -- that one's just resilience against a dropped connection during a demo, not a way to fake results on purpose.</p>
+    </div>
+  </div>
+
+  <h2 id="limitations"><span class="num">08</span>What it doesn't do yet</h2>
+  <p class="lede">Say these out loud if it fits naturally -- owning a clear, thought-through limitation sounds far more credible than pretending everything is perfect.</p>
+
+  <h3>It doesn't actually listen to how something is said</h3>
+  <p>Early on, we considered analyzing a student's actual voice -- pitch, tone, the way they say something, not just the words. That's a richer signal than timing and word choice alone, but it needs AI models built specifically to understand raw audio. In practice, going deep on that would have taken more time than this phase had, and the same detailed timing data the confidence scorer relies on is known to make transcription itself less accurate. So right now, confidence is measured purely from the transcript -- which is fast, cheap, and easy to explain to anyone who asks how it works -- but it genuinely doesn't hear tone of voice.</p>
+
+  <h3>The AI model is fast and light, not maximally capable</h3>
+  <p>The model generating replies is chosen for speed and low cost, which is a good fit for a small, fixed set of questions. A bigger, more capable model would be the right next step once the questions become open-ended and need real reasoning -- this was a deliberate choice for this stage, not a wall we hit.</p>
+
+  <h3>Only four questions, on purpose</h3>
+  <p>The question bank is small and fixed rather than open-ended, for the reason explained in §05 -- it keeps correctness checking exact instead of relying on the AI's judgment. The honest tradeoff is that it proves the tutor's logic works, but doesn't yet show it handling a real, open-ended lesson.</p>
+
+  <h2 id="prompting"><span class="num">09</span>What we learned about AI models</h2>
+  <p class="lede">Good answer if asked what surprised you while working with AI.</p>
+  <ul>
+    <li><strong>Saying something is "allowed" isn't the same as requiring it.</strong> When we told the AI a joke was "welcome," it barely ever made one. Only once we said it <em>had</em> to include a joke almost every time did the tutor's personalities actually start sounding different from each other.</li>
+    <li><strong>A concrete example works better than describing the vibe.</strong> Giving the AI one real example sentence changed its behavior far more reliably than a whole paragraph trying to describe the tone we wanted.</li>
+    <li><strong>Don't make the AI guess at facts you already know.</strong> Once we started telling it the correct answer directly instead of expecting it to work things out, its accuracy problems basically disappeared.</li>
+    <li><strong>The order you say things in matters.</strong> Telling the AI to "always end with praise, even when correcting a mistake" made it put the praise <em>before</em> the correction, which read like it was endorsing the wrong answer. Explicitly saying "correct first, then praise" fixed it.</li>
+    <li><strong>One instruction doesn't fit every situation.</strong> A rule that worked well for the strict, step-by-step personality broke the relaxed, jokey one, and vice versa -- each one needed its own version of the instruction.</li>
+  </ul>
+
+  <h2 id="qa"><span class="num">10</span>Questions they might actually ask</h2>
+
+  <div class="qa">
+    <p class="q">How do you actually know encouragement never drops?</p>
+    <p class="a">It's not something we're just claiming -- it's checked automatically every time the app is built. One check compares every student type against every other and confirms a stricter one is never less encouraging. Another confirms the exact encouragement wording sent to the AI is identical no matter how confident the student sounded. If either of those ever breaks, the build fails immediately.</p>
+  </div>
+
+  <div class="qa">
+    <p class="q">Why measure confidence from the transcript instead of just letting the AI decide?</p>
+    <p class="a">So every decision can be explained with a real number instead of "the AI felt like it." Pause length, hedging, self-corrections -- all three are things you can point at and show someone. Letting the AI just judge a student's tone would turn it into a black box, and a big part of the point of this project was making sure it never is one.</p>
+  </div>
+
+  <div class="qa">
+    <p class="q">Walk me through a real bug you found.</p>
+    <p class="a">The "can't record right now" one is the best story -- the tutor's spoken questions and its listening both go through the same phone service, and rebuilding that connection from scratch every single turn didn't give it time to actually reset, so it started refusing to listen. We fixed it by keeping one listening session open the whole time instead of tearing it down and rebuilding it constantly.</p>
+  </div>
+
+  <div class="qa">
+    <p class="q">The original plan mentioned Gemini -- why did you end up using something else?</p>
+    <p class="a">Speed, cost, and reliability, for a small fixed set of questions. Gemini's models are built to understand raw audio directly, which is genuinely the better fit if we ever add real voice-tone detection or move to open-ended questions -- we just made the call that a faster, cheaper model was the right fit for this stage, and wrote down why.</p>
+  </div>
+
+  <div class="qa">
+    <p class="q">What would you do differently, or what's the biggest thing left to solve?</p>
+    <p class="a">The question bank is small on purpose right now. The real next step is proving the same promises -- structure can tighten, but warmth never drops -- still hold once questions become open-ended and the AI has to judge correctness itself, which is exactly the uncertainty we avoided by keeping things fixed for this version.</p>
+  </div>
+
+  <h2 id="cheatsheet"><span class="num">11</span>Numbers, if they push for specifics</h2>
+  <p class="lede">You shouldn't need to recite these -- but if someone asks for the exact number, here it is.</p>
+  <div class="cheat-grid">
+    <div class="cheat-item"><span class="label">Pause counts as hesitant past</span><span class="value">1.5 seconds</span></div>
+    <div class="cheat-item"><span class="label">Hedge-word rate counts as hesitant past</span><span class="value">12% of words</span></div>
+    <div class="cheat-item"><span class="label">Self-corrections counts as hesitant past</span><span class="value">more than 1</span></div>
+    <div class="cheat-item"><span class="label">Rule for "less confident"</span><span class="value">at least 2 of those 3</span></div>
+    <div class="cheat-item"><span class="label">AI model for replies</span><span class="value">gpt-oss-20b, via Groq</span></div>
+    <div class="cheat-item"><span class="label">Model for backup transcription</span><span class="value">Whisper large-v3</span></div>
+    <div class="cheat-item"><span class="label">Original plan used</span><span class="value">Gemini, switched to Groq</span></div>
+    <div class="cheat-item"><span class="label">Android listens using</span><span class="value">Android's built-in SpeechRecognizer</span></div>
+    <div class="cheat-item"><span class="label">Website listens using</span><span class="value">the browser's Web Speech API</span></div>
+    <div class="cheat-item"><span class="label">Word never counted as hesitation</span><span class="value">"like"</span></div>
+    <div class="cheat-item"><span class="label">Number of questions</span><span class="value">4, fixed</span></div>
+  </div>
+
+  <footer>
+    Written from the real project code and this session's actual debugging history -- not reconstructed from memory.
+  </footer>
+</main>
